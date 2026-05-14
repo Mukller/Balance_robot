@@ -1,10 +1,3 @@
-/*
- * Control.h
- *
- *  Created on: 25.09.2017
- *      Author: anonymous
- */
-
 #ifndef CONTROL_H_
 #define CONTROL_H_
 
