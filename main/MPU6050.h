@@ -1,10 +1,3 @@
-/*
- * MPU6050.h
- *
- *  Created on: 22.09.2017
- *      Author: anonymous
- */
-
 #include <Arduino.h>
 
 #ifndef MPU6050_H_
