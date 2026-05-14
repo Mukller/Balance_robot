@@ -1,10 +1,3 @@
-/*
- * MPU6050.cpp
- *
- *  Created on: 22.09.2017
- *      Author: anonymous
- */
-
 #include "MPU6050.h"
 #include "Wire.h"
 
