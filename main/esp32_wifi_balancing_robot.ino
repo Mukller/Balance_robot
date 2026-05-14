@@ -1,10 +1,3 @@
-/*
- * esp32_wifi_balancing_robot.ino
- *
- *  Created on: 23.02.2021
- *      Author: anonymous
- */
- 
 #include <Wire.h>
 #include <WiFi.h>
 #include <ArduinoOTA.h>
