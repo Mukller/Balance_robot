@@ -1,10 +1,3 @@
-/*
- * defines.h
- *
- *  Created on: 25.09.2017
- *      Author: anonymous
- */
-
 #ifndef DEFINES_H_
 #define DEFINES_H_
 
