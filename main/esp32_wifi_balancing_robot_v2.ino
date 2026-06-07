@@ -57,10 +57,11 @@ volatile uint8_t robot_state = STATE_IDLE;
 unsigned long state_start_time = 0;
 #define STRAIGHT_TIME 2000      // 2 секунды прямой езды
 
-// Детекция склона/горки (когда робот наклоняется на подъёме)
+// Детекция склона/горки (по вертикальному ускорению Z-оси)
 volatile bool on_slope = false;
-#define SLOPE_ANGLE_THRESHOLD 15.0  // Угол наклона для детекции склона (градусы)
-float slope_speed_factor = 0.5;    // Скорость уменьшается в 2 раза на склоне
+#define SLOPE_ACCEL_THRESHOLD 2000  // Изменение Z-ускорения для детекции склона
+int16_t z_accel_baseline = 0;       // Базовое значение Z на ровной поверхности
+float slope_speed_factor = 0.5;     // Скорость уменьшается в 2 раза на склоне
 
 // Остановка подсистем
 volatile bool emergency_stop = false;
@@ -77,6 +78,18 @@ void initMPU6050() {
   MPU6050_setup();
   delay(500);
   MPU6050_calibrate();
+  delay(500);
+
+  // Получить базовое значение Z-ускорения (робот на ровной поверхности)
+  int32_t z_sum = 0;
+  for (int i = 0; i < 50; i++) {
+    MPU6050_read_3axis();
+    z_sum += accel_t_gyro.value.z_accel;
+    delay(10);
+  }
+  z_accel_baseline = z_sum / 50;
+  Serial.print("[MPU6050] Z-accel baseline: ");
+  Serial.println(z_accel_baseline);
 }
 
 void initDistanceSensor() {
@@ -224,13 +237,19 @@ void setup() {
 }
 
 // ============================================================================
-// ДЕТЕКЦИЯ СКЛОНА (ГОРКИ)
+// ДЕТЕКЦИЯ СКЛОНА (ГОРКИ) - ПО ВЕРТИКАЛЬНОМУ УСКОРЕНИЮ
 // ============================================================================
 
 bool detectSlope() {
-  // Если робот наклоняется > 15° - он на склоне (горке)
-  // Это происходит когда робот едет вверх или вниз
-  if (abs(angle_adjusted) > SLOPE_ANGLE_THRESHOLD) {
+  // Вертикальное ускорение (Z-ось) показывает высоту
+  // На ровной поверхности Z = baseline (примерно 16384 при 1G)
+  // На склоне Z отличается от baseline
+
+  int16_t current_z = accel_t_gyro.value.z_accel;
+  int16_t z_delta = abs(current_z - z_accel_baseline);
+
+  // Если Z изменился больше чем на порог - робот на склоне
+  if (z_delta > SLOPE_ACCEL_THRESHOLD) {
     return true;
   }
 
@@ -371,11 +390,15 @@ void readSensors() {
 void printDebugInfo() {
   // Выводить каждую секунду
   if (loop_counter % 100 == 0) {
+    int16_t z_delta = abs(accel_t_gyro.value.z_accel - z_accel_baseline);
+
     Serial.print("[Status] State: ");
     Serial.print(robot_state);
-    Serial.print(" | Angle: ");
-    Serial.print(angle_adjusted, 1);
-    Serial.print("° | OnSlope: ");
+    Serial.print(" | Z-accel: ");
+    Serial.print(accel_t_gyro.value.z_accel);
+    Serial.print(" (Δ");
+    Serial.print(z_delta);
+    Serial.print(") | OnSlope: ");
     Serial.print(on_slope);
     Serial.print(" | Distance: ");
     Serial.print(distance_mm);
