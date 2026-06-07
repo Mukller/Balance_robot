@@ -159,7 +159,7 @@ Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) in all interactions.
 
 Thank you for making this project better! 🎉
 
-**Maintainers:**
+**Maintainer:**
 - Anton (@Mukller)
 
 **Last Updated:** 2026-06-07
