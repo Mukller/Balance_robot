@@ -38,9 +38,9 @@ const char* PARAM_TOGGLE1 = "toggle1";
 const char* PARAM_LINE_MODE = "line_mode";
 const char* PARAM_DISTANCE = "distance";
 
-// WiFi параметры
-String sta_ssid = "your_ssid";
-String sta_password = "your_password";
+// WiFi параметры - ОТРЕДАКТИРУЙ ЭТО!
+String sta_ssid = "YourWiFiSSID";           // Замени на свой WiFi
+String sta_password = "YourWiFiPassword";   // Замени на свой пароль
 
 // VL53L0X дистанционный датчик
 VL53L0X distanceSensor;
@@ -74,22 +74,26 @@ unsigned long previousMillis = 0;
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================================================
 
-void initMPU6050() {
+bool initMPU6050() {
+  Serial.println("[MPU6050] Initializing...");
   MPU6050_setup();
-  delay(500);
+  vTaskDelay(pdMS_TO_TICKS(500));
+
   MPU6050_calibrate();
-  delay(500);
+  vTaskDelay(pdMS_TO_TICKS(500));
 
   // Получить базовое значение Z-ускорения (робот на ровной поверхности)
   int32_t z_sum = 0;
   for (int i = 0; i < 50; i++) {
     MPU6050_read_3axis();
     z_sum += accel_t_gyro.value.z_accel;
-    delay(10);
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
   z_accel_baseline = z_sum / 50;
   Serial.print("[MPU6050] Z-accel baseline: ");
   Serial.println(z_accel_baseline);
+  Serial.println("[MPU6050] OK");
+  return true;
 }
 
 void initDistanceSensor() {
@@ -153,10 +157,14 @@ void setup() {
 
   // Инициализировать I2C
   Wire.begin(21, 22);  // SDA=21, SCL=22
-  delay(100);
+  vTaskDelay(pdMS_TO_TICKS(100));
 
   // Инициализировать сенсоры
-  initMPU6050();
+  if (!initMPU6050()) {
+    Serial.println("[FATAL] MPU6050 init failed!");
+    while(1) vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+
   initDistanceSensor();
   LineFollower_init();
 
@@ -215,18 +223,11 @@ void setup() {
       LineFollower_setMode(mode);
     }
 
-    // Отправить ответ с статусом
-    String response = "{\"status\":\"ok\",\"state\":";
-    response += String(robot_state);
-    response += ",\"distance_mm\":";
-    response += String(distance_mm);
-    response += ",\"on_slope\":";
-    response += String(on_slope);
-    response += ",\"throttle\":";
-    response += String(throttle);
-    response += ",\"angle\":";
-    response += String(angle_adjusted);
-    response += "}";
+    // Отправить ответ с статусом (эффективная JSON генерация)
+    char response[256];
+    snprintf(response, sizeof(response),
+      "{\"status\":\"ok\",\"state\":%d,\"distance\":%d,\"slope\":%d,\"throttle\":%d,\"angle\":%.1f}",
+      robot_state, distance_mm, (int)on_slope, throttle, angle_adjusted);
 
     request->send(200, "application/json", response);
   });
@@ -245,8 +246,10 @@ bool detectSlope() {
   // На ровной поверхности Z = baseline (примерно 16384 при 1G)
   // На склоне Z отличается от baseline
 
-  int16_t current_z = accel_t_gyro.value.z_accel;
-  int16_t z_delta = abs(current_z - z_accel_baseline);
+  int32_t current_z = accel_t_gyro.value.z_accel;
+  int32_t z_delta = (current_z > z_accel_baseline) ?
+                    (current_z - z_accel_baseline) :
+                    (z_accel_baseline - current_z);
 
   // Если Z изменился больше чем на порог - робот на склоне
   if (z_delta > SLOPE_ACCEL_THRESHOLD) {
@@ -319,8 +322,8 @@ void controlLoop() {
       throttle = 150;  // Умеренная скорость
       steering = 0;    // Прямо!
 
-      // Проверить истекло ли время
-      if (millis() - state_start_time > STRAIGHT_TIME) {
+      // Проверить истекло ли время (safe от overflow)
+      if ((unsigned long)(millis() - state_start_time) > STRAIGHT_TIME) {
         robot_state = STATE_LINE_FOLLOW;
         Serial.println("[STATE] Switching to line following");
       }
@@ -360,6 +363,7 @@ void controlLoop() {
   }
 
   // ===== ОГРАНИЧЕНИЯ =====
+  control_output = constrain(control_output, -MAX_CONTROL_OUTPUT, MAX_CONTROL_OUTPUT);
   steering = constrain(steering, -max_steering, max_steering);
   throttle = constrain(throttle, -max_throttle, max_throttle);
 
