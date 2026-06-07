@@ -166,7 +166,6 @@ If upgrading from v2.0:
 ### Contributors
 
 - **Anton (@Mukller)** - Lead developer
-- **Claude (Anthropic)** - Code generation & documentation
 
 ### License
 
