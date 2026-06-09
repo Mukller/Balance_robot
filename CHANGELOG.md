@@ -2,24 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
-## [3.0] - 2026-06-09
+## [3.0] - 2026-06-07
 
 ### Added
 - Web interface with joystick control (HTML/CSS/JS)
 - Real-time sensor data display (line sensors, distance)
 - Three test sketches for debugging:
   - test_line_sensor.ino - Line sensor array testing
-  - test_distance_sensor.ino - HY-SRF05 ultrasonic distance sensor
+  - test_distance_sensor.ino - VL53L0X distance sensor
   - test_motors.ino - Stepper motor control testing
 - Detailed wiring diagram with pinout
 - Complete GPIO documentation
-- Voltage divider guide for HY-SRF05 ECHO signal
+- I2C pull-up resistor instructions
 - Breadboard layout guide
 - API endpoints for robot control
   - /api/joystick - Joystick control
   - /api/command - State commands
   - /api/status - Robot status
-- **Upgraded to HY-SRF05 ultrasonic sensor** (replaces VL53L0X laser sensor)
 
 ### Features
 - 4 robot states: IDLE, STRAIGHT, LINE_FOLLOW, STOPPED
@@ -43,7 +42,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Line following integration with 5-sensor array (Ldabrye)
 - Slope detection by vertical acceleration (Z-axis)
-- Distance sensor support (HY-SRF05 ultrasonic)
+- Distance sensor support (VL53L0X)
 - WiFi API for robot control
 - Comprehensive code review document
 

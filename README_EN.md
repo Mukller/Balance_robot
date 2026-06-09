@@ -10,7 +10,7 @@ A self-balancing robot on two wheels with line tracking, obstacle avoidance, and
 
 ### Test Sketches:
 - **test_line_sensor.ino** - Line sensor testing (5 sensors)
-- **test_distance_sensor.ino** - Distance sensor testing (HY-SRF05 ultrasonic)
+- **test_distance_sensor.ino** - Distance sensor testing (VL53L0X)
 - **test_motors.ino** - Motor speed and synchronization testing
 
 ### Libraries:
@@ -37,7 +37,7 @@ String sta_password = "YourWiFiPassword";
 Required Arduino IDE libraries:
 - AsyncTCP
 - ESPAsyncWebServer
-(HY-SRF05 doesn't require additional libraries - uses built-in pulseIn())
+- VL53L0X
 
 ### 3. Open Web Interface
 
@@ -95,14 +95,13 @@ http://192.168.X.X
 // Output: Raw values, calibrated values, ASCII graph
 ```
 
-### 2. Distance Sensor Test (HY-SRF05)
+### 2. Distance Sensor Test
 
 ```cpp
 // Upload: test_distance_sensor.ino
 // Serial Monitor: 115200 baud
 // Output: Distance in mm, status, ASCII graph
-// Shows: 0-200mm (very close) to >4000mm (far)
-// Pins: TRIG=GPIO4, ECHO=GPIO5
+// Shows: 0-200mm (very close) to >1000mm (far)
 ```
 
 ### 3. Motor Test
@@ -135,47 +134,26 @@ http://192.168.X.X
 ## 🔌 GPIO Pinout (ESP32)
 
 ```
-I2C (for MPU6050):
-  GPIO 21 (SDA)
-  GPIO 22 (SCL)
+I2C:
+  GPIO 21 (SDA) ← MPU6050, VL53L0X
+  GPIO 22 (SCL) ← MPU6050, VL53L0X
 
-Ultrasonic Distance Sensor (HY-SRF05):
-  GPIO 4  (TRIG) - trigger pulse
-  GPIO 5  (ECHO) - echo signal reception
+Motors:
+  GPIO 27/14 ← Motor1 (DIR/STEP)
+  GPIO 25/26 ← Motor2 (DIR/STEP)
+  GPIO 12 ← Enable
 
-Motors (Stepper NEMA17):
-  GPIO 27 ← Motor1 DIR (direction)
-  GPIO 14 ← Motor1 STEP (steps)
-  GPIO 25 ← Motor2 DIR (direction)
-  GPIO 26 ← Motor2 STEP (steps)
-  GPIO 12 ← Enable (both motors)
-
-Line Sensor (5 sensors):
-  GPIO 34 ← S1 (left edge)
-  GPIO 35 ← S2 (left quarter)
-  GPIO 36 ← S3 (center)
-  GPIO 39 ← S4 (right quarter)
-  GPIO 32 ← S5 (right edge)
+Line Sensor:
+  GPIO 34/35/36/39/32 ← Sensors (S1-S5)
 ```
-
-### HY-SRF05 Connection Diagram:
-```
-HY-SRF05 ─────────────── ESP32
-   TRIG ─────────────── GPIO 4
-   ECHO ─────────────── GPIO 5
-   GND  ─────────────── GND
-   VCC  ─────────────── 5V (via stabilizer!)
-```
-
-⚠️ **Important:** HY-SRF05 operates at 5V! Use voltage divider for ECHO (GPIO5 max 3.3V)
 
 ### Detailed Wiring Diagram
 
-See full README.md for complete schematic including:
+See WIRING section in main README.md for complete schematic with:
 - ESP32 pinout diagram
 - Component connections
 - Power distribution
-- Voltage divider for ECHO signal
+- Pull-up resistor placement
 - Breadboard layout
 
 ---
