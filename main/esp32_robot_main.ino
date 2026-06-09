@@ -14,10 +14,8 @@
 #include <VL53L0X.h>
 #include "web_interface.h"
 
-// ESP32 PWM для сервомоторов
+// ESP32 PWM для сервомоторов (v3.x - привязка по пину)
 #define PWM_FREQ 50
-#define PWM_CHANNEL_LEFT 0
-#define PWM_CHANNEL_RIGHT 1
 #define PWM_RESOLUTION 16
 
 // WiFi параметры - ОТРЕДАКТИРУЙ!
@@ -34,10 +32,6 @@ uint16_t distance_mm = 0;
 volatile uint8_t gripper_state = 0;  // 0 = открыт, 1 = закрыт
 #define GRIPPER_OPEN 180
 #define GRIPPER_CLOSE 90
-
-// PWM переменные
-int pwmLeftChannel;
-int pwmRightChannel;
 
 // PWM helper - конвертировать угол в PWM значение
 int angleToPWM(int angle) {
@@ -109,40 +103,36 @@ void initDistanceSensor() {
 void initGripper() {
   Serial.println("[GRIPPER] Initializing servo PWM...");
 
-  // Левая серво (GPIO 13) - новая версия ESP32
-  pwmLeftChannel = ledcCreateChannel(PWM_FREQ, PWM_RESOLUTION);
+  // ESP32 v3.x: привязываем PWM напрямую к пину (без каналов)
   ledcAttach(SERVO_LEFT_PIN, PWM_FREQ, PWM_RESOLUTION);
-
-  // Правая серво (GPIO 33) - новая версия ESP32
-  pwmRightChannel = ledcCreateChannel(PWM_FREQ, PWM_RESOLUTION);
   ledcAttach(SERVO_RIGHT_PIN, PWM_FREQ, PWM_RESOLUTION);
 
   vTaskDelay(pdMS_TO_TICKS(500));
 
   // Открыть захват
-  setServoAngle(SERVO_LEFT_PIN, pwmLeftChannel, GRIPPER_OPEN);
-  setServoAngle(SERVO_RIGHT_PIN, pwmRightChannel, GRIPPER_OPEN);
+  setServoAngle(SERVO_LEFT_PIN, GRIPPER_OPEN);
+  setServoAngle(SERVO_RIGHT_PIN, GRIPPER_OPEN);
   gripper_state = 0;
 
   Serial.println("[OK] Gripper initialized (OPEN)");
 }
 
-void setServoAngle(int pin, int channel, int angle) {
+void setServoAngle(int pin, int angle) {
   angle = constrain(angle, 0, 180);
   int pwmValue = angleToPWM(angle);
-  ledcWrite(channel, pwmValue);
+  ledcWrite(pin, pwmValue);
 }
 
 void gripperOpen() {
-  setServoAngle(SERVO_LEFT_PIN, pwmLeftChannel, GRIPPER_OPEN);
-  setServoAngle(SERVO_RIGHT_PIN, pwmRightChannel, GRIPPER_OPEN);
+  setServoAngle(SERVO_LEFT_PIN, GRIPPER_OPEN);
+  setServoAngle(SERVO_RIGHT_PIN, GRIPPER_OPEN);
   gripper_state = 0;
   Serial.println("[GRIPPER] OPEN");
 }
 
 void gripperClose() {
-  setServoAngle(SERVO_LEFT_PIN, pwmLeftChannel, GRIPPER_CLOSE);
-  setServoAngle(SERVO_RIGHT_PIN, pwmRightChannel, GRIPPER_CLOSE);
+  setServoAngle(SERVO_LEFT_PIN, GRIPPER_CLOSE);
+  setServoAngle(SERVO_RIGHT_PIN, GRIPPER_CLOSE);
   gripper_state = 1;
   Serial.println("[GRIPPER] CLOSE");
 }
