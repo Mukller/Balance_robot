@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <Servo.h>
 #include "Control.h"
 #include "MPU6050.h"
 #include "Motors.h"
@@ -21,6 +22,14 @@ String sta_password = "YourWiFiPassword";
 // Датчики
 VL53L0X distanceSensor;
 uint16_t distance_mm = 0;
+
+// Захват (две серво)
+#define SERVO_LEFT_PIN 13      // Левая серво
+#define SERVO_RIGHT_PIN 33     // Правая серво
+Servo servoLeft, servoRight;
+volatile uint8_t gripper_state = 0;  // 0 = открыт, 1 = закрыт
+#define GRIPPER_OPEN 180
+#define GRIPPER_CLOSE 90
 
 // Состояния робота
 #define STATE_IDLE 0
@@ -81,6 +90,34 @@ void initDistanceSensor() {
   Serial.println("[OK] VL53L0X initialized");
 }
 
+void initGripper() {
+  Serial.println("[GRIPPER] Initializing servos...");
+  servoLeft.attach(SERVO_LEFT_PIN);
+  servoRight.attach(SERVO_RIGHT_PIN);
+  vTaskDelay(pdMS_TO_TICKS(500));
+
+  // Открыть захват
+  servoLeft.write(GRIPPER_OPEN);
+  servoRight.write(GRIPPER_OPEN);
+  gripper_state = 0;
+
+  Serial.println("[OK] Gripper initialized (OPEN)");
+}
+
+void gripperOpen() {
+  servoLeft.write(GRIPPER_OPEN);
+  servoRight.write(GRIPPER_OPEN);
+  gripper_state = 0;
+  Serial.println("[GRIPPER] OPEN");
+}
+
+void gripperClose() {
+  servoLeft.write(GRIPPER_CLOSE);
+  servoRight.write(GRIPPER_CLOSE);
+  gripper_state = 1;
+  Serial.println("[GRIPPER] CLOSE");
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println("\n=== ESP32 Self-Balancing Robot (Main) ===");
@@ -106,6 +143,7 @@ void setup() {
   initDistanceSensor();
   LineFollower_init();
   initTimers();
+  initGripper();  // Инициализировать захват
 
   // WiFi
   WiFi.mode(WIFI_STA);
@@ -153,6 +191,10 @@ void setup() {
         throttle = 0;
         steering = 0;
         Serial.println("[CMD] STOP");
+      } else if (cmd == "gripper_open") {
+        gripperOpen();
+      } else if (cmd == "gripper_close") {
+        gripperClose();
       }
     }
     sendJsonStatus(request);
@@ -170,8 +212,8 @@ void setup() {
 void sendJsonStatus(AsyncWebServerRequest *request) {
   char response[512];
   snprintf(response, sizeof(response),
-    "{\"state\":%d,\"distance\":%d,\"slope\":%d,\"angle\":%.1f,\"throttle\":%d,\"sensors\":[%d,%d,%d,%d,%d],\"lineError\":%d}",
-    robot_state, distance_mm, (int)on_slope, angle_adjusted, throttle,
+    "{\"state\":%d,\"distance\":%d,\"slope\":%d,\"angle\":%.1f,\"throttle\":%d,\"gripper\":%d,\"sensors\":[%d,%d,%d,%d,%d],\"lineError\":%d}",
+    robot_state, distance_mm, (int)on_slope, angle_adjusted, throttle, gripper_state,
     line_sensor_calibrated[0], line_sensor_calibrated[1], line_sensor_calibrated[2],
     line_sensor_calibrated[3], line_sensor_calibrated[4],
     line_position_error);

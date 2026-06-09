@@ -153,6 +153,16 @@ const char* web_interface = R"(
             <button onclick="getStatus()">📊 Статус</button>
           </div>
         </div>
+
+        <!-- Управление захватом -->
+        <div style="margin-top: 20px;">
+          <h3 style="color: #00ff00; margin-top: 0;">🤖 Захват</h3>
+          <div class="control-buttons">
+            <button onclick="gripperOpen()" style="background: #0099ff;">✋ Открыть</button>
+            <button onclick="gripperClose()" style="background: #ff6600;">✌️ Закрыть</button>
+          </div>
+        </div>
+
         <div class="status idle" id="statusDisplay">IDLE</div>
       </div>
 
@@ -286,6 +296,20 @@ const char* web_interface = R"(
     async function stopRobot() {
       try {
         const response = await fetch('/api/command?cmd=stop');
+        updateDisplay(await response.json());
+      } catch (e) { console.log('Error:', e); }
+    }
+
+    async function gripperOpen() {
+      try {
+        const response = await fetch('/api/command?cmd=gripper_open');
+        updateDisplay(await response.json());
+      } catch (e) { console.log('Error:', e); }
+    }
+
+    async function gripperClose() {
+      try {
+        const response = await fetch('/api/command?cmd=gripper_close');
         updateDisplay(await response.json());
       } catch (e) { console.log('Error:', e); }
     }
