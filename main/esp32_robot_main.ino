@@ -5,7 +5,6 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <Servo.h>
 #include "Control.h"
 #include "MPU6050.h"
 #include "Motors.h"
@@ -14,6 +13,12 @@
 #include "LineFollower.h"
 #include <VL53L0X.h>
 #include "web_interface.h"
+
+// ESP32 PWM для сервомоторов
+#define PWM_FREQ 50
+#define PWM_CHANNEL_LEFT 0
+#define PWM_CHANNEL_RIGHT 1
+#define PWM_RESOLUTION 16
 
 // WiFi параметры - ОТРЕДАКТИРУЙ!
 String sta_ssid = "YourWiFiSSID";
@@ -24,12 +29,19 @@ VL53L0X distanceSensor;
 uint16_t distance_mm = 0;
 
 // Захват (две серво)
-#define SERVO_LEFT_PIN 13      // Левая серво
-#define SERVO_RIGHT_PIN 33     // Правая серво
-Servo servoLeft, servoRight;
+#define SERVO_LEFT_PIN 13      // Левая серво (GPIO 13)
+#define SERVO_RIGHT_PIN 33     // Правая серво (GPIO 33)
 volatile uint8_t gripper_state = 0;  // 0 = открыт, 1 = закрыт
 #define GRIPPER_OPEN 180
 #define GRIPPER_CLOSE 90
+
+// PWM helper - конвертировать угол в PWM значение
+int angleToPWM(int angle) {
+  // 0° = 1000us, 180° = 2000us
+  // На 50Hz и 16-bit: 1us = 3.277 ticks
+  int pulse = 1000 + (angle * 1000) / 180;
+  return pulse * 3.277;
+}
 
 // Состояния робота
 #define STATE_IDLE 0
@@ -91,29 +103,42 @@ void initDistanceSensor() {
 }
 
 void initGripper() {
-  Serial.println("[GRIPPER] Initializing servos...");
-  servoLeft.attach(SERVO_LEFT_PIN);
-  servoRight.attach(SERVO_RIGHT_PIN);
+  Serial.println("[GRIPPER] Initializing servo PWM...");
+
+  // Левая серво (GPIO 13)
+  ledcSetup(PWM_CHANNEL_LEFT, PWM_FREQ, PWM_RESOLUTION);
+  ledcAttachPin(SERVO_LEFT_PIN, PWM_CHANNEL_LEFT);
+
+  // Правая серво (GPIO 33)
+  ledcSetup(PWM_CHANNEL_RIGHT, PWM_FREQ, PWM_RESOLUTION);
+  ledcAttachPin(SERVO_RIGHT_PIN, PWM_CHANNEL_RIGHT);
+
   vTaskDelay(pdMS_TO_TICKS(500));
 
   // Открыть захват
-  servoLeft.write(GRIPPER_OPEN);
-  servoRight.write(GRIPPER_OPEN);
+  setServoAngle(PWM_CHANNEL_LEFT, GRIPPER_OPEN);
+  setServoAngle(PWM_CHANNEL_RIGHT, GRIPPER_OPEN);
   gripper_state = 0;
 
   Serial.println("[OK] Gripper initialized (OPEN)");
 }
 
+void setServoAngle(int channel, int angle) {
+  angle = constrain(angle, 0, 180);
+  int pwmValue = angleToPWM(angle);
+  ledcWrite(channel, pwmValue);
+}
+
 void gripperOpen() {
-  servoLeft.write(GRIPPER_OPEN);
-  servoRight.write(GRIPPER_OPEN);
+  setServoAngle(PWM_CHANNEL_LEFT, GRIPPER_OPEN);
+  setServoAngle(PWM_CHANNEL_RIGHT, GRIPPER_OPEN);
   gripper_state = 0;
   Serial.println("[GRIPPER] OPEN");
 }
 
 void gripperClose() {
-  servoLeft.write(GRIPPER_CLOSE);
-  servoRight.write(GRIPPER_CLOSE);
+  setServoAngle(PWM_CHANNEL_LEFT, GRIPPER_CLOSE);
+  setServoAngle(PWM_CHANNEL_RIGHT, GRIPPER_CLOSE);
   gripper_state = 1;
   Serial.println("[GRIPPER] CLOSE");
 }
