@@ -1,4 +1,4 @@
-// TEST: Гироскоп + акселерометр MPU6050
+// TEST: Гироскоп + акселерометр (MPU6050 / MPU6500 / MPU9250)
 // Прямое чтение по I2C (без модулей проекта)
 // Выводит: gyro (X/Y/Z), accel (X/Y/Z), температуру, углы pitch/roll
 // I2C: SDA = GPIO 21, SCL = GPIO 22
@@ -6,9 +6,9 @@
 #include <Wire.h>
 #include <math.h>
 
-#define MPU_ADDR        0x68   // I2C адрес MPU6050
+#define MPU_ADDR        0x68   // I2C адрес (общий для всей серии MPU)
 #define REG_PWR_MGMT_1  0x6B   // Управление питанием
-#define REG_WHO_AM_I    0x75   // Идентификатор (должен вернуть 0x68)
+#define REG_WHO_AM_I    0x75   // Идентификатор чипа
 #define REG_ACCEL_XOUT  0x3B   // Начало блока данных (accel/temp/gyro)
 
 #define I2C_SDA 21
@@ -18,6 +18,9 @@
 #define ACCEL_SCALE 16384.0   // ±2g  -> 16384 LSB/g
 #define GYRO_SCALE  131.0     // ±250 °/s -> 131 LSB/(°/s)
 
+// Тип чипа (определяется по WHO_AM_I) - влияет на формулу температуры
+bool isMPU6050 = true;
+
 // Сырые данные
 int16_t ax, ay, az;   // акселерометр
 int16_t tempRaw;      // температура
@@ -25,26 +28,37 @@ int16_t gx, gy, gz;   // гироскоп
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n=== MPU6050 GYRO TEST ===");
+  Serial.println("\n=== MPU GYRO TEST ===");
   Serial.println("I2C: SDA=GPIO21, SCL=GPIO22");
 
   Wire.begin(I2C_SDA, I2C_SCL);
   delay(100);
 
-  // Проверка наличия датчика
+  // Проверка наличия датчика и определение модели
   uint8_t who = readByte(REG_WHO_AM_I);
   Serial.print("[WHO_AM_I] 0x");
   Serial.println(who, HEX);
-  if (who != 0x68) {
-    Serial.println("[ERROR] MPU6050 not found! Check wiring (SDA=21, SCL=22, VCC=3.3V)");
-    while (1) delay(1000);
+
+  switch (who) {
+    case 0x68: Serial.println("[CHIP] MPU6050 detected");  isMPU6050 = true;  break;
+    case 0x70: Serial.println("[CHIP] MPU6500 detected");  isMPU6050 = false; break;
+    case 0x71: Serial.println("[CHIP] MPU9250 detected");  isMPU6050 = false; break;
+    case 0x73: Serial.println("[CHIP] MPU9255 detected");  isMPU6050 = false; break;
+    case 0x00:
+    case 0xFF:
+      Serial.println("[ERROR] No response on I2C! Check wiring (SDA=21, SCL=22, VCC=3.3V, GND)");
+      while (1) delay(1000);
+    default:
+      Serial.println("[WARN] Unknown chip ID - trying as MPU-compatible anyway");
+      isMPU6050 = false;
+      break;
   }
 
-  // Разбудить датчик (выйти из sleep)
+  // Разбудить датчик (выйти из sleep) - регистр общий для всей серии
   writeByte(REG_PWR_MGMT_1, 0x00);
   delay(100);
 
-  Serial.println("[OK] MPU6050 initialized!");
+  Serial.println("[OK] Sensor initialized!");
   Serial.println("Keep sensor still to see stable values.\n");
   delay(1000);
 }
@@ -61,7 +75,9 @@ void loop() {
   float gy_dps = gy / GYRO_SCALE;
   float gz_dps = gz / GYRO_SCALE;
 
-  float tempC = tempRaw / 340.0 + 36.53;  // формула из даташита
+  // Формула температуры зависит от чипа
+  float tempC = isMPU6050 ? (tempRaw / 340.0 + 36.53)    // MPU6050
+                          : (tempRaw / 333.87 + 21.0);   // MPU6500/9250
 
   // Углы наклона по акселерометру
   float pitch = atan2(ax_g, sqrt(ay_g * ay_g + az_g * az_g)) * 180.0 / PI;
