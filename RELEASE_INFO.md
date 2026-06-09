@@ -60,9 +60,8 @@ git clone https://github.com/Mukller/Balance_robot.git
 - 2x NEMA17 Stepper Motors
 - 2x Stepper Motor Drivers (A4988 or similar)
 - MPU6050 (Gyroscope + Accelerometer)
-- HY-SRF05 (Ultrasonic Distance Sensor)
+- VL53L0X (Laser Distance Sensor)
 - Ldabrye 5-Sensor Line Follower
-- Voltage divider resistors (10K + 20K) for HY-SRF05 ECHO signal
 - Power supply (5V, 12V)
 - Battery pack or USB power
 
@@ -101,13 +100,12 @@ None reported in v3.0
 Libraries:
 - AsyncTCP 1.1.1
 - ESPAsyncWebServer 1.2.3
-- Wire (built-in I2C - for MPU6050 only)
+- VL53L0X (Arduino library)
+- Wire (built-in I2C)
 - Arduino.h (built-in)
 
 Frameworks:
 - Arduino core for ESP32
-
-⚠️ HY-SRF05 requires NO additional libraries (uses built-in pulseIn())
 ```
 
 ### Migration from v2.0

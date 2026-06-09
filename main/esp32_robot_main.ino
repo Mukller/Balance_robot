@@ -11,17 +11,16 @@
 #include "defines.h"
 #include "globals.h"
 #include "LineFollower.h"
+#include <VL53L0X.h>
 #include "web_interface.h"
 
 // WiFi параметры - ОТРЕДАКТИРУЙ!
 String sta_ssid = "YourWiFiSSID";
 String sta_password = "YourWiFiPassword";
 
-// Ультразвуковой датчик HY-SRF05
-#define SENSOR_TRIG 4   // Триггер - GPIO 4
-#define SENSOR_ECHO 5   // Эхо - GPIO 5
+// Датчики
+VL53L0X distanceSensor;
 uint16_t distance_mm = 0;
-unsigned long pulse_duration = 0;
 
 // Состояния робота
 #define STATE_IDLE 0
@@ -65,33 +64,21 @@ bool initMPU6050() {
 }
 
 void initDistanceSensor() {
-  Serial.println("[HY-SRF05] Initializing...");
-  pinMode(SENSOR_TRIG, OUTPUT);
-  pinMode(SENSOR_ECHO, INPUT);
-  digitalWrite(SENSOR_TRIG, LOW);
-  vTaskDelay(pdMS_TO_TICKS(100));
-  Serial.println("[OK] HY-SRF05 initialized");
-}
-
-// Функция чтения расстояния (в мм)
-uint16_t readDistanceSensor() {
-  // Отправить импульс 10 микросекунд на TRIG
-  digitalWrite(SENSOR_TRIG, LOW);
-  delayMicroseconds(2);
-  digitalWrite(SENSOR_TRIG, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(SENSOR_TRIG, LOW);
-
-  // Ждём импульса на ECHO (макс 30мс для ~5 метров)
-  pulse_duration = pulseIn(SENSOR_ECHO, HIGH, 30000);
-
-  // Расстояние = время / 58 (микросекунды в см)
-  // или время / 5.8 для мм
-  if (pulse_duration > 0) {
-    uint16_t dist_mm = (pulse_duration / 5.8);
-    return constrain(dist_mm, 0, 4000);  // Макс ~4 метра
+  Serial.println("[VL53L0X] Initializing...");
+  Wire.beginTransmission(0x29);
+  if (Wire.endTransmission() != 0) {
+    Serial.println("[ERROR] VL53L0X not found!");
+    return;
   }
-  return 0;
+
+  distanceSensor.setTimeout(500);
+  if (!distanceSensor.init()) {
+    Serial.println("[ERROR] VL53L0X init failed!");
+    return;
+  }
+
+  distanceSensor.setMeasurementTimingBudget(33000);
+  Serial.println("[OK] VL53L0X initialized");
 }
 
 void setup() {
@@ -219,8 +206,10 @@ int16_t applySlopeDamping(int16_t speed) {
 void controlLoop() {
   float dt = (timer_value - timer_old) / 1000000.0;
 
-  // Читать дистанцию с HY-SRF05
-  distance_mm = readDistanceSensor();
+  // Читать дистанцию
+  if (!distanceSensor.timeoutOccurred()) {
+    distance_mm = distanceSensor.readRangeSingleMillimeters();
+  }
 
   // Препятствие → СТОП
   if (distance_mm > 0 && distance_mm < DISTANCE_THRESHOLD) {
