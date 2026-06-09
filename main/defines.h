@@ -1,15 +1,25 @@
 #ifndef DEFINES_H_
 #define DEFINES_H_
 
-#define PIN_ENABLE_MOTORS 12        
-#define PIN_MOTOR1_DIR 27    
-#define PIN_MOTOR1_STEP 14    
-#define PIN_MOTOR2_DIR 25    
-#define PIN_MOTOR2_STEP 26   
-#define PIN_SERVO 13    
-#define PIN_LED 32         
-#define PIN_WIFI_LED 2        
-#define PIN_BUZZER 33         
+// === Распиновка (соответствует README) ===
+// Моторы (шаговые + драйвер)
+#define PIN_ENABLE_MOTORS 12   // ENABLE (общий на оба мотора)
+#define PIN_MOTOR1_DIR 27      // Motor1 DIR
+#define PIN_MOTOR1_STEP 14     // Motor1 STEP
+#define PIN_MOTOR2_DIR 25      // Motor2 DIR
+#define PIN_MOTOR2_STEP 26     // Motor2 STEP
+
+// Захват (две серво)
+#define PIN_SERVO_LEFT 13      // Servo Left
+#define PIN_SERVO_RIGHT 33     // Servo Right
+
+// Прочее
+#define PIN_WIFI_LED 2         // WiFi LED
+
+// Датчик линии: GPIO 34/35/36/39/32 (см. LineFollower.h)
+// I2C (MPU6050, VL53L0X): SDA=21, SCL=22
+// Прим.: GPIO 32 занят линией (S5), GPIO 33 — серво. Статусный LED/зуммер
+//        здесь НЕ назначаются, чтобы не конфликтовать (как в README).
 
 // NORMAL MODE PARAMETERS (MAXIMUN SETTINGS)
 #define MAX_THROTTLE 550
