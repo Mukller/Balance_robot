@@ -61,31 +61,16 @@ void loop() {
     if (raw[i] > maxv[i]) maxv[i] = raw[i];
   }
 
-  // Вывод по каждому пину
+  // Простой вывод: датчик = значение -> вердикт
   for (uint8_t i = 0; i < 5; i++) {
     int range = maxv[i] - minv[i];
-
     Serial.print(names[i]);
-    Serial.print(" raw=");   printPad(raw[i]);
-    Serial.print(" min=");   printPad(minv[i]);
-    Serial.print(" max=");   printPad(maxv[i]);
-    Serial.print(" RANGE="); printPad(range);
-
-    // Вердикт: реагирует пин или висит
-    if (range < 100) Serial.print("  <-- STUCK?");
-    else             Serial.print("  OK");
-
-    Serial.print("   ");
+    Serial.print(" = ");
+    Serial.print(raw[i]);
+    if (range < 100) Serial.println("  STUCK");
+    else             Serial.println("  OK");
   }
-  Serial.println();
+  Serial.println("------------------");
 
-  delay(150);
-}
-
-// Выровнять число до 4 знаков для читаемости
-void printPad(int v) {
-  if (v < 1000) Serial.print(' ');
-  if (v < 100)  Serial.print(' ');
-  if (v < 10)   Serial.print(' ');
-  Serial.print(v);
+  delay(500);
 }
