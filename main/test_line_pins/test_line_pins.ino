@@ -61,16 +61,12 @@ void loop() {
     if (raw[i] > maxv[i]) maxv[i] = raw[i];
   }
 
-  // Простой вывод: датчик = значение -> вердикт
+  // Всё в одну строку: S1=.. S2=.. S3=.. S4=.. S5=..
   for (uint8_t i = 0; i < 5; i++) {
-    int range = maxv[i] - minv[i];
     Serial.print(names[i]);
-    Serial.print(" = ");
+    Serial.print("=");
     Serial.print(raw[i]);
-    if (range < 100) Serial.println("  STUCK");
-    else             Serial.println("  OK");
+    Serial.print(" ");
   }
-  Serial.println("------------------");
-
-  delay(500);
+  Serial.println();
 }
