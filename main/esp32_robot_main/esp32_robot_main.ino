@@ -107,17 +107,17 @@ void initDistanceSensor() {
 void initGripper() {
   Serial.println("[GRIPPER] Initializing servo PWM...");
 
-  // ESP32 v3.x: привязываем PWM напрямую к пину (без каналов)
+  // Сервы запускаем ПО ОЧЕРЕДИ: бросок тока MG996R при старте 1-2 А,
+  // одновременный запуск двух серв просаживает 5V и роняет плату
   ledcAttach(SERVO_LEFT_PIN, PWM_FREQ, PWM_RESOLUTION);
-  ledcAttach(SERVO_RIGHT_PIN, PWM_FREQ, PWM_RESOLUTION);
-
-  vTaskDelay(pdMS_TO_TICKS(500));
-
-  // Открыть захват
   setServoAngle(SERVO_LEFT_PIN, GRIPPER_OPEN);
-  setServoAngle(SERVO_RIGHT_PIN, GRIPPER_OPEN);
-  gripper_state = 0;
+  vTaskDelay(pdMS_TO_TICKS(700));  // даём левой доехать
 
+  ledcAttach(SERVO_RIGHT_PIN, PWM_FREQ, PWM_RESOLUTION);
+  setServoAngle(SERVO_RIGHT_PIN, GRIPPER_OPEN);
+  vTaskDelay(pdMS_TO_TICKS(700));  // даём правой доехать
+
+  gripper_state = 0;
   Serial.println("[OK] Gripper initialized (OPEN)");
 }
 
@@ -129,6 +129,7 @@ void setServoAngle(int pin, int angle) {
 
 void gripperOpen() {
   setServoAngle(SERVO_LEFT_PIN, GRIPPER_OPEN);
+  vTaskDelay(pdMS_TO_TICKS(150));  // развести пусковые токи серв
   setServoAngle(SERVO_RIGHT_PIN, GRIPPER_OPEN);
   gripper_state = 0;
   Serial.println("[GRIPPER] OPEN");
@@ -136,6 +137,7 @@ void gripperOpen() {
 
 void gripperClose() {
   setServoAngle(SERVO_LEFT_PIN, GRIPPER_CLOSE);
+  vTaskDelay(pdMS_TO_TICKS(150));  // развести пусковые токи серв
   setServoAngle(SERVO_RIGHT_PIN, GRIPPER_CLOSE);
   gripper_state = 1;
   Serial.println("[GRIPPER] CLOSE");
@@ -166,9 +168,9 @@ void setup() {
   initDistanceSensor();
   LineFollower_init();
   initTimers();
-  initGripper();  // Инициализировать захват
 
-  // WiFi
+  // WiFi (включаем ДО захвата: спайк радио не должен накладываться
+  // на ток серв - вместе они просаживают питание и роняют плату)
   WiFi.mode(WIFI_STA);
   WiFi.begin(sta_ssid.c_str(), sta_password.c_str());
   int attempts = 0;
@@ -183,6 +185,8 @@ void setup() {
     Serial.print("[WiFi] IP: ");
     Serial.println(WiFi.localIP());
   }
+
+  initGripper();  // Захват - после WiFi (сервы дают бросок тока при старте)
 
   // Web обработчики
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
