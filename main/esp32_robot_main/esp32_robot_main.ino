@@ -160,7 +160,7 @@ void setup() {
 
   // GPIO инициализация
   pinMode(PIN_ENABLE_MOTORS, OUTPUT);
-  digitalWrite(PIN_ENABLE_MOTORS, HIGH);
+  digitalWrite(PIN_ENABLE_MOTORS, LOW);  // TMC2209: EN active-LOW, LOW = драйверы ВКЛЮЧЕНЫ
   pinMode(PIN_MOTOR1_DIR, OUTPUT);
   pinMode(PIN_MOTOR1_STEP, OUTPUT);
   pinMode(PIN_MOTOR2_DIR, OUTPUT);
@@ -286,6 +286,14 @@ int16_t applySlopeDamping(int16_t speed) {
 void controlLoop() {
   float dt = (timer_value - timer_old) / 1000000.0;
 
+  // Защита: робот лежит/упал (>70 град от вертикали) - моторы стоп.
+  // Баланс-робот реагирует моторами на наклон ТОЛЬКО когда стоит почти вертикально!
+  if (fabsf(angle_adjusted) > 70.0f) {
+    setMotorSpeedM1(0);
+    setMotorSpeedM2(0);
+    return;
+  }
+
   // Читать дистанцию (неблокирующе: берём результат, только если замер готов)
   if (distanceSensor.readReg(VL53L0X::RESULT_INTERRUPT_STATUS) & 0x07) {
     distance_mm = distanceSensor.readReg16Bit(VL53L0X::RESULT_RANGE_STATUS + 10);
@@ -318,8 +326,8 @@ void controlLoop() {
   // State machine
   switch (robot_state) {
     case STATE_IDLE:
-      throttle = 0;
-      steering = 0;
+      // Ручной режим: throttle/steering приходят с джойстика (/api/joystick)
+      // и НЕ затираются - иначе джойстик не работает
       break;
 
     case STATE_STRAIGHT:
