@@ -243,18 +243,23 @@ void controlLoop() {
 
   // Диагностика каждые 10 циклов (~100 мс) для отладки
   if (loop_counter % 10 == 0) {
-    Serial.print("[DBG] Angle:");
+    // Пересчитать balance_output для диагностики (в реальном коде выше)
+    float diag_balance = stabilityPDControl(dt, angle_adjusted, target_angle, Kp, Kd);
+    float diag_speed = speedPIControl(dt, actual_robot_speed, throttle, Kp_thr, Ki_thr);
+
+    Serial.print("[DBG] A:");
     Serial.print(angle_adjusted, 2);
-    Serial.print("° Out:");
+    Serial.print("° Bal:");
+    Serial.print((int)diag_balance);
+    Serial.print(" Spd:");
+    Serial.print((int)diag_speed);
+    Serial.print(" Out:");
     Serial.print((int)control_output);
     Serial.print(" M1:");
     Serial.print(speed_M1);
-    Serial.print(" M2:");
-    Serial.print(speed_M2);
-    Serial.print(" Thr:");
-    Serial.print(throttle);
-    Serial.print(" State:");
-    Serial.println(robot_state);
+    Serial.print(" dt:");
+    Serial.print(dt, 4);
+    Serial.println();
   }
 }
 
