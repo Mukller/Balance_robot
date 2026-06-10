@@ -155,8 +155,8 @@ void controlLoop() {
     distance_mm = distanceSensor.readRangeSingleMillimeters();
   }
 
-  // Препятствие → СТОП
-  if (distance_mm > 0 && distance_mm < DISTANCE_THRESHOLD) {
+  // Препятствие → СТОП (только для движущихся состояний, не во время балансировки)
+  if (robot_state != STATE_IDLE && distance_mm > 0 && distance_mm < DISTANCE_THRESHOLD) {
     robot_state = STATE_STOPPED;
     throttle = 0;
     steering = 0;
