@@ -26,6 +26,11 @@ String sta_password = "+375296285943";
 VL53L0X distanceSensor;
 uint16_t distance_mm = 0;
 
+// Режим тестирования моторов (отключает все защиты)
+// 1 = оба мотора крутятся вперёд на полной скорости (как test_motor_simple)
+// 0 = нормальный режим с protection
+#define MOTOR_TEST_MODE 0
+
 // Захват (две серво)
 // ВНИМАНИЕ: сервы MG996R НЕЛЬЗЯ питать от пина 5V платы ESP32 -
 // бросок тока при движении (1-2 А) роняет плату в ресет.
@@ -285,6 +290,16 @@ int16_t applySlopeDamping(int16_t speed) {
 // ============================================================================
 
 void controlLoop() {
+  // ТЕСТОВЫЙ РЕЖИМ: оба мотора вперёд на полной скорости (как test_motor_simple)
+  if (MOTOR_TEST_MODE) {
+    setMotorSpeedM1(500);   // максимум
+    setMotorSpeedM2(500);   // максимум
+    if (loop_counter % 100 == 0) {
+      Serial.println("[MOTOR TEST] Both motors FULL SPEED forward");
+    }
+    return;
+  }
+
   float dt = (timer_value - timer_old) / 1000000.0;
 
   // Защита: робот лежит/упал (>70 град от вертикали) - моторы стоп.
