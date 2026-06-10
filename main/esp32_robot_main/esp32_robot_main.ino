@@ -105,7 +105,8 @@ void initDistanceSensor() {
   }
 
   distanceSensor.setMeasurementTimingBudget(33000);
-  distanceSensor.startContinuous(50);  // непрерывные замеры каждые 50 мс (не блокируют цикл)
+  // Используем непрерывный режим: startRangeContinuous() + readRangeContinuousMillimeters()
+  // в control loop (каждые 10 мс = 100 Гц, достаточно для датчика)
   Serial.println("[OK] VL53L0X initialized");
 }
 
@@ -294,10 +295,9 @@ void controlLoop() {
     return;
   }
 
-  // Читать дистанцию (неблокирующе: берём результат, только если замер готов)
-  if (distanceSensor.readReg(VL53L0X::RESULT_INTERRUPT_STATUS) & 0x07) {
-    distance_mm = distanceSensor.readReg16Bit(VL53L0X::RESULT_RANGE_STATUS + 10);
-    distanceSensor.writeReg(VL53L0X::SYSTEM_INTERRUPT_CLEAR, 0x01);
+  // Читать дистанцию (синхронно: ~10 мс за замер, но надёжно)
+  if (!distanceSensor.timeoutOccurred()) {
+    distance_mm = distanceSensor.readRangeSingleMillimeters();
   }
 
   // Препятствие → СТОП
