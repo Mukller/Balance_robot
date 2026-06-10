@@ -41,6 +41,9 @@ int angleToPWM(int angle) {
   return (int)(pulse * 3.277);
 }
 
+// Определена в Timers.cpp (шаговые таймеры моторов)
+void initTimers();
+
 // Состояния робота
 #define STATE_IDLE 0
 #define STATE_STRAIGHT 1
@@ -97,6 +100,7 @@ void initDistanceSensor() {
   }
 
   distanceSensor.setMeasurementTimingBudget(33000);
+  distanceSensor.startContinuous(50);  // непрерывные замеры каждые 50 мс (не блокируют цикл)
   Serial.println("[OK] VL53L0X initialized");
 }
 
@@ -267,9 +271,10 @@ int16_t applySlopeDamping(int16_t speed) {
 void controlLoop() {
   float dt = (timer_value - timer_old) / 1000000.0;
 
-  // Читать дистанцию
-  if (!distanceSensor.timeoutOccurred()) {
-    distance_mm = distanceSensor.readRangeSingleMillimeters();
+  // Читать дистанцию (неблокирующе: берём результат, только если замер готов)
+  if (distanceSensor.readReg(VL53L0X::RESULT_INTERRUPT_STATUS) & 0x07) {
+    distance_mm = distanceSensor.readReg16Bit(VL53L0X::RESULT_RANGE_STATUS + 10);
+    distanceSensor.writeReg(VL53L0X::SYSTEM_INTERRUPT_CLEAR, 0x01);
   }
 
   // Препятствие → СТОП
@@ -364,53 +369,27 @@ void readSensors() {
   }
 }
 
-void IRAM_ATTR onTimer1() {
-  if (speed_M1 != 0) {
-    digitalWrite(PIN_MOTOR1_STEP, HIGH);
-    delayMicroseconds(50);
-    digitalWrite(PIN_MOTOR1_STEP, LOW);
-  }
-}
-c:\Users\Ecat\Documents\Balance_robot\main\defines.h
-void IRAM_ATTR onTimer2() {
-  if (speed_M2 != 0) {
-    digitalWrite(PIN_MOTOR2_STEP, HIGH);
-    delayMicroseconds(50);
-    digitalWrite(PIN_MOTOR2_STEP, LOW);
-  }
-}
-
-void IRAM_ATTR onControlTimer() {
-  timer_value = timerRead(timer0);
-  readSensors();
-  controlLoop();
-  dt = (timer_value - timer_old) / 1000000.0;
-  timer_old = timer_value;
-
-  cascade_control_loop_counter++;
-  if (cascade_control_loop_counter >= 10) {
-    cascade_control_loop_counter = 0;
-    loop_counter++;
-  }
-}
-
-void initTimers() {
-  timer1 = timerBegin(0, 40, true);
-  timerAttachInterrupt(timer1, &onTimer1, true);
-  timerAlarmWrite(timer1, 500000, true);
-  timerAlarmEnable(timer1);
-
-  timer2 = timerBegin(1, 40, true);
-  timerAttachInterrupt(timer2, &onTimer2, true);
-  timerAlarmWrite(timer2, 500000, true);
-  timerAlarmEnable(timer2);
-
-  timer0 = timerBegin(2, 80, true);
-  timerAttachInterrupt(timer0, &onControlTimer, true);
-  timerAlarmWrite(timer0, 10000, true);
-  timerAlarmEnable(timer0);
-}
-
+// Контрольный цикл 100 Гц в loop() (НЕ в ISR: I2C-чтение MPU в прерывании
+// на ESP32 приводит к крашу). Шаги моторов генерят timer1/timer2 из Timers.cpp.
 void loop() {
-  vTaskDelay(pdMS_TO_TICKS(10));
+  static unsigned long last_control_us = 0;
+  unsigned long now = micros();
+
+  if ((unsigned long)(now - last_control_us) >= 10000) {  // 10 мс = 100 Гц
+    last_control_us = now;
+
+    timer_value = now;
+    dt = (timer_value - timer_old) / 1000000.0;
+
+    readSensors();
+    controlLoop();
+
+    timer_old = timer_value;
+
+    cascade_control_loop_counter++;
+    if (cascade_control_loop_counter >= 10) {
+      cascade_control_loop_counter = 0;
+      loop_counter++;
+    }
+  }
 }

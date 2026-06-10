@@ -1,13 +1,5 @@
 #include "globals.h"
 #include "defines.h"
-#include <stdio.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "esp_types.h"
-#include "soc/timer_group_struct.h"
-#include "driver/periph_ctrl.h"
-#include "driver/timer.h"
 #include "esp32-hal-timer.h"
 
 extern "C" {
@@ -51,16 +43,13 @@ void IRAM_ATTR timer2ISR() {
 }
 
 void initTimers() {
+	// ESP32 Core v3.x API: timerBegin(частота тика).
+	// 2 МГц - под расчёт периодов в Motors.cpp (2000000 / speed)
+	timer1 = timerBegin(2000000);
+	timerAttachInterrupt(timer1, &timer1ISR);
+	timerAlarm(timer1, ZERO_SPEED, true, 0);
 
-	timer1 = timerBegin(0, 40, true);
-	timerAttachInterrupt(timer1, &timer1ISR, true);
-	timerAlarmWrite(timer1, ZERO_SPEED, true);
-
-	timer2 = timerBegin(1, 40, true);
-	timerAttachInterrupt(timer2, &timer2ISR, true);
-	timerAlarmWrite(timer2, ZERO_SPEED, true);
-
-	timerAlarmEnable(timer1);
-	timerAlarmEnable(timer2);
-
+	timer2 = timerBegin(2000000);
+	timerAttachInterrupt(timer2, &timer2ISR);
+	timerAlarm(timer2, ZERO_SPEED, true, 0);
 }
