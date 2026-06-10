@@ -1,6 +1,6 @@
 // Web interface HTML/CSS/JS для управления роботом джойстиком
 
-const char* web_interface = R"(
+const char* web_interface = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
@@ -354,4 +354,4 @@ const char* web_interface = R"(
   </script>
 </body>
 </html>
-)";
+)rawliteral";
