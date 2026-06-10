@@ -226,18 +226,20 @@ void controlLoop() {
   setMotorSpeedM1(control_output - steering);
   setMotorSpeedM2(control_output + steering);
 
-  // Диагностика каждые 100 циклов (~1 сек)
-  if (loop_counter % 100 == 0) {
-    Serial.print("[Status] State:");
-    Serial.print(robot_state);
-    Serial.print(" Angle:");
-    Serial.print(angle_adjusted, 1);
-    Serial.print("° Dist:");
-    Serial.print(distance_mm);
-    Serial.print("mm M1:");
+  // Диагностика каждые 10 циклов (~100 мс) для отладки
+  if (loop_counter % 10 == 0) {
+    Serial.print("[DBG] Angle:");
+    Serial.print(angle_adjusted, 2);
+    Serial.print("° Out:");
+    Serial.print((int)control_output);
+    Serial.print(" M1:");
     Serial.print(speed_M1);
     Serial.print(" M2:");
-    Serial.println(speed_M2);
+    Serial.print(speed_M2);
+    Serial.print(" Thr:");
+    Serial.print(throttle);
+    Serial.print(" State:");
+    Serial.println(robot_state);
   }
 }
 
