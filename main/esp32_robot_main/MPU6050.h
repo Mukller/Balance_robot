@@ -455,6 +455,8 @@ typedef union accel_t_gyro_union
   } value;
 };
 
+extern accel_t_gyro_union accel_t_gyro;
+
 void MPU6050_read_1axis();
 void MPU6050_read_3axis();
 void MPU6050_setup();
