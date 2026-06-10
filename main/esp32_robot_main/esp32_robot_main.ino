@@ -27,6 +27,11 @@ VL53L0X distanceSensor;
 uint16_t distance_mm = 0;
 
 // Захват (две серво)
+// ВНИМАНИЕ: сервы MG996R НЕЛЬЗЯ питать от пина 5V платы ESP32 -
+// бросок тока при движении (1-2 А) роняет плату в ресет.
+// Поставь 1 ТОЛЬКО после подключения серв к отдельному 5V (BEC >= 3A, общий GND).
+#define GRIPPER_ENABLED 0      // 0 = захват отключён, 1 = включён
+
 #define SERVO_LEFT_PIN 13      // Левая серво (GPIO 13)
 #define SERVO_RIGHT_PIN 33     // Правая серво (GPIO 33)
 volatile uint8_t gripper_state = 0;  // 0 = открыт, 1 = закрыт
@@ -105,6 +110,10 @@ void initDistanceSensor() {
 }
 
 void initGripper() {
+  if (!GRIPPER_ENABLED) {
+    Serial.println("[GRIPPER] DISABLED (set GRIPPER_ENABLED 1 after wiring separate 5V for servos)");
+    return;
+  }
   Serial.println("[GRIPPER] Initializing servo PWM...");
 
   // Сервы запускаем ПО ОЧЕРЕДИ: бросок тока MG996R при старте 1-2 А,
@@ -128,6 +137,7 @@ void setServoAngle(int pin, int angle) {
 }
 
 void gripperOpen() {
+  if (!GRIPPER_ENABLED) { Serial.println("[GRIPPER] disabled"); return; }
   setServoAngle(SERVO_LEFT_PIN, GRIPPER_OPEN);
   vTaskDelay(pdMS_TO_TICKS(150));  // развести пусковые токи серв
   setServoAngle(SERVO_RIGHT_PIN, GRIPPER_OPEN);
@@ -136,6 +146,7 @@ void gripperOpen() {
 }
 
 void gripperClose() {
+  if (!GRIPPER_ENABLED) { Serial.println("[GRIPPER] disabled"); return; }
   setServoAngle(SERVO_LEFT_PIN, GRIPPER_CLOSE);
   vTaskDelay(pdMS_TO_TICKS(150));  // развести пусковые токи серв
   setServoAngle(SERVO_RIGHT_PIN, GRIPPER_CLOSE);
