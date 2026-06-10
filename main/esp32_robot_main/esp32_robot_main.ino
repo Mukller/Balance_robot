@@ -1,10 +1,8 @@
-// ESP32 Self-Balancing Robot - ОСНОВНОЙ СКЕТЧ
-// Робот: 2 сек прямо → детекция уклона → стоп при препятствии
+// ESP32 Self-Balancing Robot
+// Чистый балансир без веб-интерфейса
+// State machine: IDLE → STRAIGHT (2 сек) → LINE_FOLLOW || STOPPED (препятствие)
 
 #include <Wire.h>
-#include <WiFi.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
 #include "Control.h"
 #include "MPU6050.h"
 #include "Motors.h"
@@ -12,47 +10,9 @@
 #include "globals.h"
 #include "LineFollower.h"
 #include <VL53L0X.h>
-#include "web_interface.h"
 
-// ESP32 PWM для сервомоторов (v3.x - привязка по пину)
-#define PWM_FREQ 50
-#define PWM_RESOLUTION 16
-
-// WiFi параметры - ОТРЕДАКТИРУЙ!
-String sta_ssid = "XPEHBAM";
-String sta_password = "+375296285943";
-
-// Датчики
 VL53L0X distanceSensor;
 uint16_t distance_mm = 0;
-
-// Режим тестирования моторов (отключает все защиты)
-// 1 = оба мотора крутятся вперёд на полной скорости (как test_motor_simple)
-// 0 = нормальный режим с protection
-#define MOTOR_TEST_MODE 0
-
-// Захват (две серво)
-// ВНИМАНИЕ: сервы MG996R НЕЛЬЗЯ питать от пина 5V платы ESP32 -
-// бросок тока при движении (1-2 А) роняет плату в ресет.
-// Поставь 1 ТОЛЬКО после подключения серв к отдельному 5V (BEC >= 3A, общий GND).
-#define GRIPPER_ENABLED 0      // 0 = захват отключён, 1 = включён
-
-#define SERVO_LEFT_PIN 13      // Левая серво (GPIO 13)
-#define SERVO_RIGHT_PIN 33     // Правая серво (GPIO 33)
-volatile uint8_t gripper_state = 0;  // 0 = открыт, 1 = закрыт
-#define GRIPPER_OPEN 180
-#define GRIPPER_CLOSE 90
-
-// PWM helper - конвертировать угол в PWM значение
-int angleToPWM(int angle) {
-  // 0° = 1000us, 180° = 2000us
-  // На 50Hz и 16-bit: 1us = 3.277 ticks
-  int pulse = 1000 + (angle * 1000) / 180;
-  return (int)(pulse * 3.277);
-}
-
-// Определена в Timers.cpp (шаговые таймеры моторов)
-void initTimers();
 
 // Состояния робота
 #define STATE_IDLE 0
@@ -63,35 +23,37 @@ void initTimers();
 volatile uint8_t robot_state = STATE_IDLE;
 unsigned long state_start_time = 0;
 
-// Склон
 volatile bool on_slope = false;
 int16_t z_accel_baseline = 0;
+
 #define SLOPE_ACCEL_THRESHOLD 2000
 #define DISTANCE_THRESHOLD 300
 #define STRAIGHT_TIME 2000
 
-AsyncWebServer server(80);
+void initTimers();  // из Timers.cpp
 
 // ============================================================================
-// ИНИЦИАЛИЗАЦИЯ
+// ИНИЦИАЛИЗАЦИЯ ДАТЧИКОВ
 // ============================================================================
 
 bool initMPU6050() {
   Serial.println("[MPU6050] Initializing...");
   MPU6050_setup();
   vTaskDelay(pdMS_TO_TICKS(500));
-  MPU6050_calibrate();
-  vTaskDelay(pdMS_TO_TICKS(500));
 
-  int32_t z_sum = 0;
-  for (int i = 0; i < 50; i++) {
-    MPU6050_read_3axis();
-    z_sum += accel_t_gyro.value.z_accel;
-    vTaskDelay(pdMS_TO_TICKS(10));
+  // Калибровка с максимум 3 попытками
+  uint8_t cal_attempts = 0;
+  while (cal_attempts < 3) {
+    cal_attempts++;
+    Serial.print("[CALIB] Attempt ");
+    Serial.print(cal_attempts);
+    Serial.println("/3 - DONT MOVE!");
+    MPU6050_calibrate();
+    if (x_gyro_offset != 0) break;  // успешна
   }
-  z_accel_baseline = z_sum / 50;
-  Serial.print("[MPU6050] Z-baseline: ");
-  Serial.println(z_accel_baseline);
+
+  vTaskDelay(pdMS_TO_TICKS(500));
+  Serial.println("[OK] MPU6050 ready");
   return true;
 }
 
@@ -110,75 +72,25 @@ void initDistanceSensor() {
   }
 
   distanceSensor.setMeasurementTimingBudget(33000);
-  // Используем непрерывный режим: startRangeContinuous() + readRangeContinuousMillimeters()
-  // в control loop (каждые 10 мс = 100 Гц, достаточно для датчика)
-  Serial.println("[OK] VL53L0X initialized");
-}
-
-void initGripper() {
-  if (!GRIPPER_ENABLED) {
-    Serial.println("[GRIPPER] DISABLED (set GRIPPER_ENABLED 1 after wiring separate 5V for servos)");
-    return;
-  }
-  Serial.println("[GRIPPER] Initializing servo PWM...");
-
-  // Сервы запускаем ПО ОЧЕРЕДИ: бросок тока MG996R при старте 1-2 А,
-  // одновременный запуск двух серв просаживает 5V и роняет плату
-  ledcAttach(SERVO_LEFT_PIN, PWM_FREQ, PWM_RESOLUTION);
-  setServoAngle(SERVO_LEFT_PIN, GRIPPER_OPEN);
-  vTaskDelay(pdMS_TO_TICKS(700));  // даём левой доехать
-
-  ledcAttach(SERVO_RIGHT_PIN, PWM_FREQ, PWM_RESOLUTION);
-  setServoAngle(SERVO_RIGHT_PIN, GRIPPER_OPEN);
-  vTaskDelay(pdMS_TO_TICKS(700));  // даём правой доехать
-
-  gripper_state = 0;
-  Serial.println("[OK] Gripper initialized (OPEN)");
-}
-
-void setServoAngle(int pin, int angle) {
-  angle = constrain(angle, 0, 180);
-  int pwmValue = angleToPWM(angle);
-  ledcWrite(pin, pwmValue);
-}
-
-void gripperOpen() {
-  if (!GRIPPER_ENABLED) { Serial.println("[GRIPPER] disabled"); return; }
-  setServoAngle(SERVO_LEFT_PIN, GRIPPER_OPEN);
-  vTaskDelay(pdMS_TO_TICKS(150));  // развести пусковые токи серв
-  setServoAngle(SERVO_RIGHT_PIN, GRIPPER_OPEN);
-  gripper_state = 0;
-  Serial.println("[GRIPPER] OPEN");
-}
-
-void gripperClose() {
-  if (!GRIPPER_ENABLED) { Serial.println("[GRIPPER] disabled"); return; }
-  setServoAngle(SERVO_LEFT_PIN, GRIPPER_CLOSE);
-  vTaskDelay(pdMS_TO_TICKS(150));  // развести пусковые токи серв
-  setServoAngle(SERVO_RIGHT_PIN, GRIPPER_CLOSE);
-  gripper_state = 1;
-  Serial.println("[GRIPPER] CLOSE");
+  Serial.println("[OK] VL53L0X ready");
 }
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n=== ESP32 Self-Balancing Robot (Main) ===");
+  Serial.println("\n=== ESP32 Self-Balancing Robot ===");
 
-  // GPIO инициализация
+  // GPIO
   pinMode(PIN_ENABLE_MOTORS, OUTPUT);
-  digitalWrite(PIN_ENABLE_MOTORS, LOW);  // TMC2209: EN active-LOW, LOW = драйверы ВКЛЮЧЕНЫ
+  digitalWrite(PIN_ENABLE_MOTORS, LOW);  // TMC2209: EN active-LOW
+
   pinMode(PIN_MOTOR1_DIR, OUTPUT);
   pinMode(PIN_MOTOR1_STEP, OUTPUT);
   pinMode(PIN_MOTOR2_DIR, OUTPUT);
   pinMode(PIN_MOTOR2_STEP, OUTPUT);
 
-  // I2C
-  Wire.begin(21, 22);
-  vTaskDelay(pdMS_TO_TICKS(100));
-
-  // Датчики
+  // Инициализация датчиков и управления
   if (!initMPU6050()) {
-    Serial.println("[FATAL] MPU6050 init failed!");
+    Serial.println("[FATAL] MPU6050 failed!");
     while(1) vTaskDelay(pdMS_TO_TICKS(1000));
   }
 
@@ -186,83 +98,14 @@ void setup() {
   LineFollower_init();
   initTimers();
 
-  // WiFi (включаем ДО захвата: спайк радио не должен накладываться
-  // на ток серв - вместе они просаживают питание и роняют плату)
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(sta_ssid.c_str(), sta_password.c_str());
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    vTaskDelay(pdMS_TO_TICKS(500));
-    Serial.print(".");
-    attempts++;
-  }
+  // Начальное состояние: IDLE
+  robot_state = STATE_IDLE;
+  throttle = 0;
+  steering = 0;
 
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println();
-    Serial.print("[WiFi] IP: ");
-    Serial.println(WiFi.localIP());
-  }
-
-  initGripper();  // Захват - после WiFi (сервы дают бросок тока при старте)
-
-  // Web обработчики
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/html", web_interface);
-  });
-
-  server.on("/api/joystick", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (request->hasArg("throttle")) {
-      throttle = request->arg("throttle").toInt();
-    }
-    if (request->hasArg("steering")) {
-      steering = request->arg("steering").toInt();
-    }
-    sendJsonStatus(request);
-  });
-
-  server.on("/api/command", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (request->hasArg("cmd")) {
-      String cmd = request->arg("cmd");
-      if (cmd == "straight") {
-        robot_state = STATE_STRAIGHT;
-        state_start_time = millis();
-        Serial.println("[CMD] STRAIGHT");
-      } else if (cmd == "line") {
-        robot_state = STATE_LINE_FOLLOW;
-        Serial.println("[CMD] LINE_FOLLOW");
-      } else if (cmd == "stop") {
-        robot_state = STATE_IDLE;
-        throttle = 0;
-        steering = 0;
-        Serial.println("[CMD] STOP");
-      } else if (cmd == "gripper_open") {
-        gripperOpen();
-      } else if (cmd == "gripper_close") {
-        gripperClose();
-      }
-    }
-    sendJsonStatus(request);
-  });
-
-  server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest *request) {
-    sendJsonStatus(request);
-  });
-
-  server.begin();
-  Serial.println("[Web] Server started at http://" + WiFi.localIP().toString());
   Serial.println("[OK] Ready!");
-}
-
-void sendJsonStatus(AsyncWebServerRequest *request) {
-  char response[512];
-  snprintf(response, sizeof(response),
-    "{\"state\":%d,\"distance\":%d,\"slope\":%d,\"angle\":%.1f,\"throttle\":%d,\"gripper\":%d,\"sensors\":[%d,%d,%d,%d,%d],\"lineError\":%d}",
-    robot_state, distance_mm, (int)on_slope, angle_adjusted, throttle, gripper_state,
-    line_sensor_calibrated[0], line_sensor_calibrated[1], line_sensor_calibrated[2],
-    line_sensor_calibrated[3], line_sensor_calibrated[4],
-    line_position_error);
-
-  request->send(200, "application/json", response);
+  Serial.println("Robot will: IDLE → STRAIGHT (2s) → LINE_FOLLOW");
+  delay(2000);
 }
 
 // ============================================================================
@@ -274,43 +117,29 @@ bool detectSlope() {
   int32_t z_delta = (current_z > z_accel_baseline) ?
                     (current_z - z_accel_baseline) :
                     (z_accel_baseline - current_z);
-
   return (z_delta > SLOPE_ACCEL_THRESHOLD);
 }
 
 int16_t applySlopeDamping(int16_t speed) {
-  if (on_slope) {
-    return (speed * 0.5);  // Замедление в 2 раза
-  }
+  if (on_slope) return (speed * 0.5);  // 2x замедление на склоне
   return speed;
 }
 
 // ============================================================================
-// КОНТРОЛЬ (100Hz)
+// КОНТРОЛЬНЫЙ ЦИКЛ (100 Гц)
 // ============================================================================
 
 void controlLoop() {
-  // ТЕСТОВЫЙ РЕЖИМ: оба мотора вперёд на полной скорости (как test_motor_simple)
-  if (MOTOR_TEST_MODE) {
-    setMotorSpeedM1(500);   // максимум
-    setMotorSpeedM2(500);   // максимум
-    if (loop_counter % 100 == 0) {
-      Serial.println("[MOTOR TEST] Both motors FULL SPEED forward");
-    }
-    return;
-  }
-
   float dt = (timer_value - timer_old) / 1000000.0;
 
-  // Защита: робот лежит/упал (>70 град от вертикали) - моторы стоп.
-  // Баланс-робот реагирует моторами на наклон ТОЛЬКО когда стоит почти вертикально!
+  // Защита: робот лежит (>70°) - моторы стоп
   if (fabsf(angle_adjusted) > 70.0f) {
     setMotorSpeedM1(0);
     setMotorSpeedM2(0);
     return;
   }
 
-  // Читать дистанцию (синхронно: ~10 мс за замер, но надёжно)
+  // Читать дистанцию
   if (!distanceSensor.timeoutOccurred()) {
     distance_mm = distanceSensor.readRangeSingleMillimeters();
   }
@@ -341,8 +170,8 @@ void controlLoop() {
   // State machine
   switch (robot_state) {
     case STATE_IDLE:
-      // Ручной режим: throttle/steering приходят с джойстика (/api/joystick)
-      // и НЕ затираются - иначе джойстик не работает
+      // Ручное управление: throttle/steering с джойстика (если бы он был)
+      // На данный момент просто стоит
       break;
 
     case STATE_STRAIGHT:
@@ -386,16 +215,18 @@ void controlLoop() {
   setMotorSpeedM1(control_output - steering);
   setMotorSpeedM2(control_output + steering);
 
-  // Debug
+  // Диагностика каждые 100 циклов (~1 сек)
   if (loop_counter % 100 == 0) {
     Serial.print("[Status] State:");
     Serial.print(robot_state);
-    Serial.print(" Dist:");
-    Serial.print(distance_mm);
-    Serial.print("mm Slope:");
-    Serial.print(on_slope);
     Serial.print(" Angle:");
-    Serial.println(angle_adjusted, 1);
+    Serial.print(angle_adjusted, 1);
+    Serial.print("° Dist:");
+    Serial.print(distance_mm);
+    Serial.print("mm M1:");
+    Serial.print(speed_M1);
+    Serial.print(" M2:");
+    Serial.println(speed_M2);
   }
 }
 
@@ -407,8 +238,10 @@ void readSensors() {
   }
 }
 
-// Контрольный цикл 100 Гц в loop() (НЕ в ISR: I2C-чтение MPU в прерывании
-// на ESP32 приводит к крашу). Шаги моторов генерят timer1/timer2 из Timers.cpp.
+// ============================================================================
+// LOOP - контрольный цикл без блокировок
+// ============================================================================
+
 void loop() {
   static unsigned long last_control_us = 0;
   unsigned long now = micros();
