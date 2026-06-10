@@ -82,9 +82,6 @@ void initDistanceSensor() {
 void setup() {
   Serial.begin(115200);
   Serial.println("\n=== ESP32 Self-Balancing Robot ===");
-  Serial.println("[BOOT] Standing still for 5 seconds...");
-  delay(5000);  // Робот стоит неподвижно 5 сек - время для подготовки
-  Serial.println("[BOOT] Starting initialization...");
 
   // GPIO
   pinMode(PIN_ENABLE_MOTORS, OUTPUT);
@@ -105,14 +102,16 @@ void setup() {
   LineFollower_init();
   initTimers();
 
-  // Начальное состояние: IDLE
+  // Начальное состояние: IDLE (робот будет балансировать на месте)
   robot_state = STATE_IDLE;
   throttle = 0;
   steering = 0;
 
   Serial.println("[OK] Ready!");
-  Serial.println("Robot will: IDLE → STRAIGHT (2s) → LINE_FOLLOW");
-  delay(2000);
+  Serial.println("[BALANCE] Balancing for 5 seconds, then STRAIGHT...");
+
+  // Установим время начала IDLE - через 5 сек перейдёт в STRAIGHT
+  state_start_time = millis();
 }
 
 // ============================================================================
@@ -177,8 +176,13 @@ void controlLoop() {
   // State machine
   switch (robot_state) {
     case STATE_IDLE:
-      // Ручное управление: throttle/steering с джойстика (если бы он был)
-      // На данный момент просто стоит
+      // Балансировка на месте (throttle=0, steering=0)
+      // Через 5 сек переходит в STRAIGHT
+      if ((unsigned long)(millis() - state_start_time) > 5000) {
+        robot_state = STATE_STRAIGHT;
+        state_start_time = millis();
+        Serial.println("[AUTO] IDLE → STRAIGHT (5s balance complete)");
+      }
       break;
 
     case STATE_STRAIGHT:
