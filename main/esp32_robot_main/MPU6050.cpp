@@ -53,15 +53,20 @@ float MPU6050_getAngle(float dt)
 void MPU6050_calibrate()
 {
   int i;
-  long value = 0;
+  long value;
   float dev;
   int16_t values[100];
   bool gyro_cal_ok = false;
+  uint8_t attempts = 0;
 
   delay(500);
-  while (!gyro_cal_ok){
-    Serial.println("Gyro calibration... DONT MOVE!");
-    // we take 100 measurements in 4 seconds
+  while (!gyro_cal_ok && attempts < 10){
+    attempts++;
+    Serial.print("Gyro calibration (attempt ");
+    Serial.print(attempts);
+    Serial.println("/10)... DONT MOVE!");
+
+    value = 0;  // BUGFIX: обнулять на каждой попытке (раньше копился мусор)
     for (i = 0; i < 100; i++)
     {
       MPU6050_read_3axis();
@@ -74,16 +79,25 @@ void MPU6050_calibrate()
     // calculate the standard deviation
     dev = 0;
     for (i = 0; i < 100; i++)
-      dev += (values[i] - value) * (values[i] - value);
+      dev += (float)(values[i] - value) * (values[i] - value);
     dev = sqrt((1 / 100.0) * dev);
     Serial.print("offset: ");
     Serial.print(value);
     Serial.print("  stddev: ");
-    Serial.println(dev);
+    Serial.print(dev);
+    Serial.print("  samples: ");
+    Serial.print(values[0]); Serial.print(" ");
+    Serial.print(values[25]); Serial.print(" ");
+    Serial.print(values[50]); Serial.print(" ");
+    Serial.println(values[75]);
     if (dev < 50.0)
       gyro_cal_ok = true;
     else
-      Serial.println("Repeat, DONT MOVE!");
+      Serial.println("Repeat, DONT MOVE! (high stddev = vibration or I2C noise)");
+  }
+  if (!gyro_cal_ok) {
+    Serial.println("[WARN] Gyro calibration FAILED after 10 attempts - using last offset.");
+    Serial.println("[WARN] Check: robot must be still; check I2C wiring (SDA=21,SCL=22).");
   }
   x_gyro_offset = value;
   // Take the first reading of angle from accels
