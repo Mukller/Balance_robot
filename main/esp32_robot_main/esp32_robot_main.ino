@@ -113,6 +113,16 @@ void setup() {
   steering = 0;
 
   Serial.println("[OK] Ready!");
+
+  // Тест моторов: небольшое вращение на 1 секунду
+  Serial.println("[TEST] Motor spin for 1 second...");
+  setMotorSpeedM1(100);
+  setMotorSpeedM2(100);
+  delay(1000);
+  setMotorSpeedM1(0);
+  setMotorSpeedM2(0);
+  Serial.println("[TEST] Motor test complete");
+
   Serial.println("[BALANCE] Balancing for 5 seconds, then STRAIGHT...");
 
   // Установим время начала IDLE - через 5 сек перейдёт в STRAIGHT
