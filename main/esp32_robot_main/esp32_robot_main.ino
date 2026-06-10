@@ -38,6 +38,11 @@ void initTimers();  // из Timers.cpp
 
 bool initMPU6050() {
   Serial.println("[MPU6050] Initializing...");
+
+  // ВАЖНО: инициализировать I2C ШИНу!
+  Wire.begin(21, 22);  // SDA=21, SCL=22
+  vTaskDelay(pdMS_TO_TICKS(100));
+
   MPU6050_setup();
   vTaskDelay(pdMS_TO_TICKS(500));
 
