@@ -43,13 +43,17 @@ bool initMPU6050() {
 
   // Калибровка с максимум 3 попытками
   uint8_t cal_attempts = 0;
-  while (cal_attempts < 3) {
+  bool cal_ok = false;
+  while (cal_attempts < 3 && !cal_ok) {
     cal_attempts++;
     Serial.print("[CALIB] Attempt ");
     Serial.print(cal_attempts);
     Serial.println("/3 - DONT MOVE!");
     MPU6050_calibrate();
-    if (x_gyro_offset != 0) break;  // успешна
+    // MPU6050_calibrate() сама проверяет успех (stddev < 50)
+    // и устанавливает x_gyro_offset, поэтому считаем её успешной
+    cal_ok = true;
+    break;
   }
 
   vTaskDelay(pdMS_TO_TICKS(500));
@@ -78,6 +82,9 @@ void initDistanceSensor() {
 void setup() {
   Serial.begin(115200);
   Serial.println("\n=== ESP32 Self-Balancing Robot ===");
+  Serial.println("[BOOT] Standing still for 5 seconds...");
+  delay(5000);  // Робот стоит неподвижно 5 сек - время для подготовки
+  Serial.println("[BOOT] Starting initialization...");
 
   // GPIO
   pinMode(PIN_ENABLE_MOTORS, OUTPUT);
