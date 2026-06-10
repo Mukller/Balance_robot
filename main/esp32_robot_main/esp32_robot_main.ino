@@ -19,8 +19,8 @@
 #define PWM_RESOLUTION 16
 
 // WiFi параметры - ОТРЕДАКТИРУЙ!
-String sta_ssid = "YourWiFiSSID";
-String sta_password = "YourWiFiPassword";
+String sta_ssid = "XPEHBAM";
+String sta_password = "+375296285943";
 
 // Датчики
 VL53L0X distanceSensor;
@@ -371,7 +371,7 @@ void IRAM_ATTR onTimer1() {
     digitalWrite(PIN_MOTOR1_STEP, LOW);
   }
 }
-
+c:\Users\Ecat\Documents\Balance_robot\main\defines.h
 void IRAM_ATTR onTimer2() {
   if (speed_M2 != 0) {
     digitalWrite(PIN_MOTOR2_STEP, HIGH);
