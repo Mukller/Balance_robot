@@ -44,7 +44,7 @@ float PID_errorSum;
 float PID_errorOld = 0;
 float PID_errorOld2 = 0;
 float setPointOld = 0;
-float target_angle;
+float target_angle;  // ТОЛЬКО ОДНО ОБЪЯВЛЕНИЕ - НЕ ДОБАВЛЯТЬ = 0.0 ЗДЕСЬ
 int16_t throttle;
 float steering;
 float max_throttle = MAX_THROTTLE;
@@ -52,6 +52,8 @@ float max_steering = MAX_STEERING;
 float max_target_angle = MAX_TARGET_ANGLE;
 float control_output;
 float angle_offset = ANGLE_OFFSET;
+
+// ... остальной код без изменений
 
 boolean positionControlMode = false;
 uint8_t mode;  // mode = 0 Normal mode, mode = 1 Pro mode (More agressive)
@@ -87,3 +89,5 @@ uint8_t OSCmove_mode;
 int16_t OSCmove_speed;
 int16_t OSCmove_steps1;
 int16_t OSCmove_steps2;
+
+
