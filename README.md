@@ -1,5 +1,17 @@
 # 🤖 ESP32 Self-Balancing Robot
 
+<div align="center">
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple?style=flat-square)](LICENSE.md)
+[![C++](https://img.shields.io/badge/C%2B%2B-17-blue?style=flat-square&logo=cplusplus)](https://isocpp.org/)
+[![ESP32](https://img.shields.io/badge/ESP32-Platform-red?style=flat-square)](https://www.espressif.com/)
+[![maintained](https://img.shields.io/badge/maintained%3F-yes-green?style=flat-square)](https://github.com/Mukller/Balance_robot)
+[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
+
+[English](README_EN.md) • Русский
+
+</div>
+
 Автономный робот-балансир на двух колёсах с линией, препятствиями и управлением через веб-интерфейс.
 
 ## 📁 Файлы проекта
