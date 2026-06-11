@@ -1,6 +1,6 @@
 # MIT License
 
-Copyright (c) 2026 Anton (@Mukller)
+Copyright (c) 2024-2026 Anton Mukller
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,28 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-## What You Can Do
-
-✅ Use the software for any purpose
-✅ Copy and modify the software
-✅ Distribute copies or modifications
-✅ Use the software in private or commercial projects
-
-## Conditions
-
-⚠️ Include the license and copyright notice in any distribution
-⚠️ Include this license with any copy of the software
-
-## Limitations
-
-❌ No warranty - software is provided "as is"
-❌ Authors are not liable for damages or issues
-
----
-
-**License Type:** MIT License  
-**Effective Date:** 2026-06-07  
-**More Info:** https://opensource.org/licenses/MIT
