@@ -74,19 +74,34 @@ void LineFollower_readSensors() {
 
 // ====== CALCULATE LINE POSITION ERROR ======
 // Returns weighted average position: -200 (far left) to +200 (far right)
+// Works with edge sensors (0,4) if center sensors are stuck
 int16_t LineFollower_calculateError() {
   LineFollower_readSensors();
-  
+
   uint32_t total_weight = 0;
   int32_t weighted_sum = 0;
-  
-  // Calculate center of mass of detected line
-  for (uint8_t i = 0; i < 5; i++) {
-    uint16_t sensor_value = line_sensor_calibrated[i];
-    weighted_sum += sensor_value * sensor_weights[i];
-    total_weight += sensor_value;
+
+  // Detect if center sensors are stuck (not responding to line)
+  // Use only edge sensors (0, 4) if center sensors are unresponsive
+  uint8_t active_sensors = 5;
+  bool center_stuck = (line_sensor_calibrated[1] == 0 &&
+                       line_sensor_calibrated[2] == 0 &&
+                       line_sensor_calibrated[3] == 0);
+
+  if (center_stuck && (line_sensor_calibrated[0] > 0 || line_sensor_calibrated[4] > 0)) {
+    // Use only edge sensors
+    active_sensors = 2;
+    weighted_sum = (line_sensor_calibrated[0] * (-2)) + (line_sensor_calibrated[4] * 2);
+    total_weight = line_sensor_calibrated[0] + line_sensor_calibrated[4];
+  } else {
+    // Calculate center of mass of detected line (all 5 sensors)
+    for (uint8_t i = 0; i < 5; i++) {
+      uint16_t sensor_value = line_sensor_calibrated[i];
+      weighted_sum += sensor_value * sensor_weights[i];
+      total_weight += sensor_value;
+    }
   }
-  
+
   // Avoid division by zero
   if (total_weight == 0) {
     line_position_error = 0;  // Line not detected - center position
@@ -94,7 +109,7 @@ int16_t LineFollower_calculateError() {
     // Normalize to -200 to +200 range
     line_position_error = constrain((int16_t)(weighted_sum * 200 / total_weight), -200, 200);
   }
-  
+
   return line_position_error;
 }
 

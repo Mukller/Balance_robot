@@ -4,6 +4,12 @@
 #include <Arduino.h>
 #include "esp32-hal-timer.h"
 
+// Добавьте в конец файла перед #endif
+extern float angle;  // Из MPU6050
+extern float x_gyro_offset;  // Из MPU6050
+extern float accel_angle;  // Из MPU6050
+
+
 extern volatile long counter1;
 extern volatile long counter2;
 extern hw_timer_t * timer1;
