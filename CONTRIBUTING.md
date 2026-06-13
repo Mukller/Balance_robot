@@ -1,165 +1,247 @@
-# Contributing to ESP32 Self-Balancing Robot
+# Руководство для контрибьютеров
 
-Thank you for your interest in contributing! This document provides guidelines and instructions for contributing.
+Спасибо за интерес к проекту! Этот документ описывает процесс внесения вклада.
 
-## Getting Started
+## 📋 Содержание
 
-1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/Balance_robot.git`
-3. Create a branch: `git checkout -b feature/your-feature-name`
-4. Make your changes
-5. Commit: `git commit -m "feat: describe your changes"`
-6. Push: `git push origin feature/your-feature-name`
-7. Open a Pull Request
+- [Кодекс поведения](#кодекс-поведения)
+- [Как начать](#как-начать)
+- [Стиль кода](#стиль-кода)
+- [Коммиты](#коммиты)
+- [Pull Requests](#pull-requests)
+- [Тестирование](#тестирование)
 
-## Code Style
+## 🤝 Кодекс поведения
 
-### Arduino/C++
-- Use clear, descriptive variable names
-- Include comments for non-obvious logic
-- Follow the existing code structure
-- Use 2-space indentation
-- Keep functions focused and under 50 lines
+Мы придерживаемся принципов вежливости и уважения. Ожидаем того же от всех участников:
 
-### Naming Conventions
-- Functions: `camelCase()` or `snake_case()`
-- Variables: `snake_case`
-- Constants: `UPPER_CASE`
-- Classes: `PascalCase`
+- Будь вежлив и уважителен в общении
+- Принимай конструктивную критику
+- Сосредоточься на том, что лучше для сообщества
+- Проявляй сочувствие к другим участникам
 
-### Comments
-```cpp
-// Use single-line comments for brief explanations
-// Multiple lines for complex logic
+## 🚀 Как начать
 
-// Avoid over-commenting obvious code
-// int x = 5;  // Set x to 5  ❌ Not needed
+### 1. Форкни репозиторий
 
-// Do comment the "why", not the "what"
-// Calculate slope based on Z-axis to detect hills ✅
-int16_t z_delta = current_z - baseline_z;
+Нажми кнопку **Fork** на странице репозитория.
+
+### 2. Клонируй свой форк
+
+```bash
+git clone https://github.com/YOUR_USERNAME/AdvancedSpyInventory.git
+cd AdvancedSpyInventory
 ```
 
-## Testing
+### 3. Добавь upstream (оригинальный репозиторий)
 
-Before submitting a pull request:
-
-1. **Test on hardware** - Run your code on an actual ESP32
-2. **Use test sketches** - Verify with test_*.ino files
-3. **Check Serial output** - Verify debug messages
-4. **Run all test sketches**:
-   - test_line_sensor.ino
-   - test_distance_sensor.ino
-   - test_motors.ino
-
-## Documentation
-
-- Update README.md if you change user-facing features
-- Update CHANGELOG.md with your changes
-- Document new functions with brief comments
-- Include GPIO pins in comments for hardware changes
-
-## Commit Messages
-
-Follow conventional commits format:
-
-```
-feat: Add new feature description
-fix: Fix specific bug
-docs: Update documentation
-refactor: Refactor without changing behavior
-test: Add or update tests
-chore: Update dependencies, configs, etc.
+```bash
+git remote add upstream https://github.com/Mukller/AdvancedSpyInventory.git
 ```
 
-Example:
+### 4. Создай ветку
+
+```bash
+# Обновись с оригинального репозитория
+git fetch upstream
+git checkout -b feature/description upstream/main
+
+# Или для исправления багов:
+git checkout -b bugfix/description upstream/main
 ```
-feat: add web interface for robot control
 
-- Add HTML/CSS/JS joystick interface
-- Real-time sensor data display
-- Support for mobile devices
-- Update README with web interface docs
+**Правила именования веток:**
+- `feature/name-of-feature` — новые функции
+- `bugfix/name-of-bug` — исправление ошибок
+- `docs/description` — документация
+- `refactor/description` — рефакторинг кода
+
+## 💻 Стиль кода
+
+### Java код
+
+```java
+// ✅ ПРАВИЛЬНО
+public class InventoryViewer {
+    private final SpyPlugin plugin;
+    private Player targetPlayer;
+
+    public InventoryViewer(SpyPlugin plugin, Player targetPlayer) {
+        this.plugin = plugin;
+        this.targetPlayer = targetPlayer;
+    }
+
+    public void openInventory() {
+        if (targetPlayer != null) {
+            // Логика открытия инвентаря
+        }
+    }
+}
+
+// ❌ НЕПРАВИЛЬНО
+public class InventoryViewer{
+public final SpyPlugin plugin;
+public Player p;
+public InventoryViewer(SpyPlugin p,Player tp){plugin=p;p=tp;}
+public void open(){if(p!=null){}}
 ```
 
-## Pull Request Process
+### Требования к коду
 
-1. **Title**: Brief description (max 70 chars)
-2. **Description**: 
-   - What changed and why
-   - Testing done
-   - Any breaking changes
-   - Related issues
+- Используй **camelCase** для переменных и методов
+- Используй **PascalCase** для классов
+- Максимум **100 символов** в строке
+- Отступ — **4 пробела** (или tab, см. конфиг проекта)
+- Добавляй JavaDoc комментарии к публичным методам:
 
-3. **Checklist**:
-   - [ ] Code follows style guide
-   - [ ] Changes are tested on hardware
-   - [ ] Documentation is updated
-   - [ ] No new warnings generated
-   - [ ] Code is clean and readable
+```java
+/**
+ * Открывает инвентарь целевого игрока для администратора.
+ *
+ * @param admin администратор, просматривающий инвентарь
+ * @param target целевой игрок
+ * @return true если инвентарь успешно открыт, иначе false
+ */
+public boolean openInventoryForAdmin(Player admin, Player target) {
+    // ...
+}
+```
 
-## Areas for Contribution
+### YAML конфигурация
 
-### Code
-- [ ] Performance optimization
-- [ ] Bug fixes
-- [ ] New sensor support
-- [ ] WiFi improvements
-- [ ] Web interface enhancements
+```yaml
+# ✅ ПРАВИЛЬНО
+plugin:
+  name: "AdvancedSpyInventory"
+  enabled: true
+  
+  settings:
+    # Уведомлять игрока о просмотре инвентаря
+    notify-player: true
+    logging: true
 
-### Documentation
-- [ ] Fix typos
-- [ ] Improve clarity
-- [ ] Add examples
-- [ ] Translate to other languages
-- [ ] Create video tutorials
+# ❌ НЕПРАВИЛЬНО
+plugin:
+name: AdvancedSpyInventory
+enabled: yes
+settings: {notify: true, logging: true}
+```
 
-### Testing
-- [ ] Test edge cases
-- [ ] Test on different ESP32 boards
-- [ ] Test sensor combinations
-- [ ] Performance benchmarks
+## 📝 Коммиты
 
-### Examples
-- [ ] Example sketches
-- [ ] Advanced features
-- [ ] Integration examples
-- [ ] Troubleshooting guides
+Используй понятные сообщения коммитов:
 
-## Reporting Issues
+```bash
+# ✅ ПРАВИЛЬНО
+git commit -m "feat: Add inventory open command with permission checks"
+git commit -m "fix: Correct player offline detection bug"
+git commit -m "docs: Update README with installation instructions"
+git commit -m "refactor: Simplify InventoryManager code"
 
-When reporting bugs:
+# ❌ НЕПРАВИЛЬНО
+git commit -m "fix bug"
+git commit -m "update"
+git commit -m "asdf"
+```
 
-1. **Title**: Clear, descriptive
-2. **Description**:
-   - What happened
-   - What should happen
-   - Steps to reproduce
-   - Hardware setup
-   - Code version
-3. **Logs**: Include Serial output
-4. **Images**: Screenshots/photos if relevant
+**Формат:** `<type>: <subject>`
 
-## Questions?
+**Типы:**
+- `feat` — новая функция
+- `fix` — исправление ошибки
+- `docs` — обновление документации
+- `refactor` — переписывание кода без смены функционала
+- `test` — добавление или обновление тестов
+- `perf` — улучшение производительности
 
-- Open an issue for questions
-- Check existing issues first
-- Include relevant code snippets
-- Be specific about your setup
+## 🔄 Pull Requests
 
-## License
+### Перед созданием PR
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+1. ✅ Убедись, что код компилируется без ошибок
+2. ✅ Протестируй функцию на игровом сервере
+3. ✅ Обновись с `upstream/main`
+4. ✅ Удали лишние коммиты (`git rebase`)
 
-## Code of Conduct
+### Создание PR
 
-Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) in all interactions.
+```bash
+# Запушь свою ветку
+git push origin feature/your-feature
+
+# Перейди на GitHub и создай Pull Request
+```
+
+### Описание PR
+
+```markdown
+## Описание
+Краткое описание того, что делает PR.
+
+## Тип изменения
+- [ ] Новая функция
+- [x] Исправление ошибки
+- [ ] Breaking change
+- [ ] Обновление документации
+
+## Как это тестировалось?
+Опишите, как ты тестировал изменения:
+1. Запустил сервер на версии X.X.X
+2. Выполнил команду `/spy PlayerName`
+3. Проверил логи
+
+## Чек-лист
+- [x] Мой код следует стилю проекта
+- [x] Я провел самопроверку
+- [x] Я обновил документацию (если нужно)
+- [x] Код компилируется без ошибок
+```
+
+## 🧪 Тестирование
+
+### Локальное тестирование
+
+1. Скомпилируй плагин:
+```bash
+mvn clean package
+# или gradle build
+```
+
+2. Скопируй JAR в тестовый сервер:
+```bash
+cp target/AdvancedSpyInventory-*.jar ~/test-server/plugins/
+```
+
+3. Запусти сервер и протестируй функцию
+
+### Что нужно тестировать
+
+- ✅ Команда `/spy <player>` работает
+- ✅ Команда не работает без разрешений
+- ✅ Плагин корректно обрабатывает оффлайн игроков
+- ✅ Конфиг правильно загружается
+- ✅ Нет ошибок в консоли
+
+## 📖 Документация
+
+При добавлении новой функции обновляй документацию:
+
+- **README.md** — основное описание
+- **CHANGELOG.md** — если существует
+- **Inline комментарии** — в самом коде
+
+## ❓ Вопросы?
+
+Если у тебя есть вопросы:
+
+1. Проверь существующие [Issues](https://github.com/Mukller/AdvancedSpyInventory/issues)
+2. Создай новый Issue с пометкой `question`
+3. Обратись в Discussions (если включены)
+
+## 🎉 Спасибо!
+
+Большое спасибо за внесение вклада в проект! Каждый вклад важен для сообщества.
 
 ---
 
-Thank you for making this project better! 🎉
-
-**Maintainer:**
-- Anton (@Mukller)
-
-**Last Updated:** 2026-06-07
+**Happy Coding!** 💻
