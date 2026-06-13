@@ -1,22 +1,13 @@
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple?style=flat-square)](LICENSE.md)
-[![maintained](https://img.shields.io/badge/maintained%3F-yes-green?style=flat-square)](https://github.com/Mukller/Balance_robot)
+[![maintained](https://img.shields.io/badge/maintained%3F-yes-green?style=flat-square)](https://github.com/Mukller/REPO)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
-
----
-
-## Language / Язык
 
 </div>
 
-| **📖 English** | **📖 Русский** |
-|:---:|:---:|
-| Scroll down / Листай вниз | Листай вниз / Scroll down |
-
----
-
-## English Version
+<details open>
+<summary><strong>📖 English</strong></summary>## English Version
 
 
 
@@ -279,6 +270,11 @@ Contributions welcome! See CONTRIBUTING.md for guidelines.
 **Last Updated:** 2026-06-07
 
 ---
+
+</details>
+
+<details>
+<summary><strong>📖 Русский</strong></summary>
 
 ## Русская версия
 
@@ -818,3 +814,5 @@ GPIO 21 (SDA):
 
 **Версия схемы:** 1.0  
 **Последнее обновление:** 2026-06-07
+
+</details>
