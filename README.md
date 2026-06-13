@@ -4,10 +4,22 @@
 [![maintained](https://img.shields.io/badge/maintained%3F-yes-green?style=flat-square)](https://github.com/Mukller/Balance_robot)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 
+---
+
+## Language / Язык
+
 </div>
 
-<details open>
-<summary><strong>📖 English</strong></summary>
+| **📖 English** | **📖 Русский** |
+|:---:|:---:|
+| Scroll down / Листай вниз | Листай вниз / Scroll down |
+
+---
+
+## English Version
+
+
+
 
 # 🤖 ESP32 Self-Balancing Robot
 
@@ -266,10 +278,12 @@ Contributions welcome! See CONTRIBUTING.md for guidelines.
 
 **Last Updated:** 2026-06-07
 
-</details>
+---
 
-<details>
-<summary><strong>📖 Русский</strong></summary>
+## Русская версия
+
+
+
 
 # 🤖 ESP32 Self-Balancing Robot
 
@@ -804,5 +818,3 @@ GPIO 21 (SDA):
 
 **Версия схемы:** 1.0  
 **Последнее обновление:** 2026-06-07
-
-</details>
