@@ -1,3 +1,7 @@
+[English](README_EN.md) • Русский
+
+---
+
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple?style=flat-square)](LICENSE.md)
