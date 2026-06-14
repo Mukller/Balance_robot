@@ -1,8 +1,548 @@
 <div align="center">
 
-[English](README_EN.md) • **Русский**
+[![License: MIT](https://img.shields.io/badge/License-MIT-purple?style=flat-square)](LICENSE.md)
+[![maintained](https://img.shields.io/badge/maintained%3F-yes-green?style=flat-square)](https://github.com/Mukller/Balance_robot)
+[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
+
+### 🌐 Язык / Language
+
+**Нажми, чтобы развернуть нужный язык · Click to expand your language**
 
 </div>
+
+<details open>
+<summary><b>🇬🇧 English</b></summary>
+
+<br>
+
+# 🤖 ESP32 Self-Balancing Robot
+
+An autonomous two-wheeled self-balancing robot with line following, obstacle detection, and control via a web interface.
+
+## 📁 Project files
+
+### Main sketches:
+- **esp32_robot_main.ino** - the robot's main program
+- **web_interface.h** - web interface with a joystick
+
+### Test sketches:
+- **test_line_sensor.ino** - line sensor test (5 sensors)
+- **test_distance_sensor.ino** - distance sensor test (VL53L0X)
+- **test_motors.ino** - motor test (speed and synchronization)
+- **test_servo_gripper.ino** - gripper servo test (two servos)
+- **test_gyro.ino** - gyroscope/accelerometer test (MPU6050)
+
+### Libraries:
+- LineFollower.h/.cpp
+- Control.h/.cpp
+- MPU6050.h/.cpp
+- Motors.h/.cpp
+- defines.h, globals.h/.cpp
+
+---
+
+## ⚡ Quick start
+
+### 1. Edit WiFi
+
+In **esp32_robot_main.ino**:
+```cpp
+String sta_ssid = "YourWiFiSSID";
+String sta_password = "YourWiFiPassword";
+```
+
+### 2. Upload from the Arduino IDE
+
+Required libraries:
+- AsyncTCP
+- ESPAsyncWebServer
+- VL53L0X
+
+### 3. Open the web interface
+
+```
+http://192.168.X.X
+```
+
+---
+
+## 🎮 Control (web interface)
+
+### Joystick
+- **Up-down** = Throttle (speed)
+- **Left-right** = Steering (turning)
+
+### Buttons
+- **▶ Straight** - drive 2 sec, then follow the line
+- **〰 Line** - follow the line
+- **⏹ Stop** - stop
+
+### Real-time sensors
+- Distance to obstacle (mm)
+- 5 line sensors (graph)
+- Tilt angle
+- Slope status
+
+---
+
+## 🤖 How the robot works
+
+```
+1. IDLE (waiting for a command)
+   ├─ "Straight" button → STRAIGHT
+   ├─ "Line" button → LINE_FOLLOW
+   └─ Gripper button → Open/Close (independent)
+   
+2. STRAIGHT (2 sec forward motion)
+   └─ Automatic transition → LINE_FOLLOW
+   
+3. LINE_FOLLOW (follows the line)
+   ├─ If it sees an obstacle → STOPPED
+   ├─ If on a slope → slow down (×0.5)
+   └─ Gripper is controlled separately
+   
+4. STOPPED (obstacle detected)
+   ├─ Motors stopped
+   └─ "Stop" button → IDLE
+
+Gripper (independent):
+- Open: 180° (any time)
+- Close: 90° (any time)
+```
+
+---
+
+## 🧪 Testing
+
+### 1. Line sensor test
+
+```cpp
+// Upload: test_line_sensor.ino
+// Serial Monitor: 115200 baud
+// Outputs: Raw values, Calibrated, ASCII graph
+```
+
+### 2. Distance sensor test
+
+```cpp
+// Upload: test_distance_sensor.ino
+// Serial Monitor: 115200 baud
+// Outputs: distance in mm, status, ASCII graph
+// Checks: 0-200mm (very close) to >1000mm (far)
+```
+
+### 3. Motor test
+
+```cpp
+// Upload: test_motors.ino
+// Serial Monitor: 115200 baud
+// Tests:
+//   1. Both slow forward
+//   2. Both fast forward
+//   3. Both backward
+//   4. Different speeds (synchronization)
+// Outputs: step count, speed ratio
+```
+
+### 4. Gripper servo test
+
+```cpp
+// Upload: test_servo_gripper.ino
+// Serial Monitor: 115200 baud
+// Tests:
+//   1. Left servo: 0° → 180° → 0°
+//   2. Right servo: 0° → 180° → 0°
+//   3. Both together (Open 180° → Close 90° → Reset 0°)
+// Pins: GPIO 13 (left), GPIO 33 (right)
+// Outputs: ASCII graph of rotation angles
+```
+
+### 5. Gyroscope test (MPU6050)
+
+```cpp
+// Upload: test_gyro.ino
+// Serial Monitor: 115200 baud
+// Checks: WHO_AM_I (0x68), then reads data
+// Outputs:
+//   - Gyroscope X/Y/Z (°/sec)
+//   - Accelerometer X/Y/Z (g)
+//   - Pitch / Roll angles
+//   - Temperature (°C)
+// I2C pins: SDA=GPIO 21, SCL=GPIO 22
+```
+
+---
+
+## 🔧 Parameters in code
+
+```cpp
+#define DISTANCE_THRESHOLD 300      // Stop < 300mm
+#define STRAIGHT_TIME 2000          // 2 sec straight
+#define SLOPE_ACCEL_THRESHOLD 2000  // Slope threshold
+#define MAX_THROTTLE 550            // Max speed
+#define MAX_STEERING 140            // Max steering
+```
+
+---
+
+## 📊 GPIO wiring (ESP32)
+
+```
+I2C (for sensors):
+  GPIO 21 (SDA) ← MPU6050, VL53L0X
+  GPIO 22 (SCL) ← MPU6050, VL53L0X
+
+Motors (movement):
+  GPIO 27 ← Motor1 DIR (direction)
+  GPIO 14 ← Motor1 STEP (steps)
+  GPIO 25 ← Motor2 DIR (direction)
+  GPIO 26 ← Motor2 STEP (steps)
+  GPIO 12 ← Enable
+
+Gripper (two servos):
+  GPIO 13 ← Servo Left (left arm)
+  GPIO 33 ← Servo Right (right arm)
+
+Line sensor:
+  GPIO 34 ← S1 (left edge)
+  GPIO 35 ← S2 (left quarter)
+  GPIO 36 ← S3 (center)
+  GPIO 39 ← S4 (right quarter)
+  GPIO 32 ← S5 (right edge)
+```
+
+---
+
+## 🐛 Help
+
+**The robot won't connect:**
+- Check the WiFi SSID/password
+- Watch the Serial Monitor (115200)
+
+**It doesn't balance:**
+- Check I2C (MPU6050)
+- Check the motors (test_motors.ino)
+
+**It doesn't follow the line:**
+- Calibrate the sensor (test_line_sensor.ino)
+- Check the line contrast
+
+**It doesn't see obstacles:**
+- Test the sensor (test_distance_sensor.ino)
+- Adjust DISTANCE_THRESHOLD
+
+---
+
+## ✅ Pre-use checklist
+
+- [ ] ESP32 connected
+- [ ] All sensors connected
+- [ ] WiFi SSID/password entered
+- [ ] test_motors.ino passes
+- [ ] test_line_sensor.ino works
+- [ ] test_distance_sensor.ino works
+- [ ] The web interface opens
+
+---
+
+**Version:** 3.0 (with web interface)  
+**Status:** ✅ Production Ready
+
+---
+
+## 🔌 FULL WIRING DIAGRAM
+
+### ESP32 Pinout (30 pin version)
+
+```
+         ┌─────────────────────┐
+         │      ESP32-30       │
+    GND  │  ⬤ ⬤ ⬤ ⬤ ⬤ ⬤ ⬤ ⬤  │  3.3V
+    GND  │  ⬤                 ⬤ │  VUSB
+    3.3V │  ⬤                 ⬤ │  GND
+    RST  │  ⬤                 ⬤ │  EN
+    12   │  ⬤ ENABLE MOTORS   ⬤ │  27 (MOTOR1_DIR)
+    13   │  ⬤ SERVO           ⬤ │  25 (MOTOR2_DIR)
+    14   │  ⬤ MOTOR1_STEP     ⬤ │  32 (LINE_S5)
+    26   │  ⬀                 ⬀ │  33 (BUZZER)
+    35   │  ⬀ LINE_S2         ⬀ │  34 (LINE_S1)
+    39   │  ⬀ LINE_S4         ⬀ │  36 (LINE_S3)
+    GND  │  ⬀                 ⬀ │  GND
+    GND  │  ⬀                 ⬀ │  15
+    23   │  ⬀ VSPI_MOSI       ⬀ │  2 (WIFI_LED)
+    22   │  ⬀ SCL (I2C)       ⬀ │  4
+    21   │  ⬀ SDA (I2C)       ⬀ │  5
+    19   │  ⬀ VSPI_MISO       ⬀ │  18 (VSPI_CLK)
+    GND  │  ⬀                 ⬀ │  GND
+    GND  │  ⬀                 ⬀ │  17
+    16   │  ⬀ RX2             ⬀ │  GND
+         └─────────────────────┘
+```
+
+---
+
+## 📋 DETAILED COMPONENT WIRING
+
+### 1. MOTORS (NEMA17 stepper with driver)
+
+```
+Motor 1:
+┌──────────────────┐
+│  NEMA17 Motor   │
+├──────────────────┤
+│ DIR ─────→ GPIO 27
+│ STEP ────→ GPIO 14
+│ GND ─────→ GND
+│ +12V ────→ 12V (via driver)
+└──────────────────┘
+
+Motor 2:
+┌──────────────────┐
+│  NEMA17 Motor   │
+├──────────────────┤
+│ DIR ─────→ GPIO 25
+│ STEP ────→ GPIO 26
+│ GND ─────→ GND
+│ +12V ────→ 12V (via driver)
+└──────────────────┘
+
+Motor Enable:
+GPIO 12 → Motor Driver Enable
+GND ────→ GND
+```
+
+### 2. MPU6050 (Gyroscope + Accelerometer)
+
+```
+┌──────────────────┐
+│     MPU6050      │
+├──────────────────┤
+│ SDA ─────→ GPIO 21 (I2C)
+│ SCL ─────→ GPIO 22 (I2C)
+│ GND ─────→ GND
+│ VCC ─────→ 3.3V
+│ INT ─────→ leave unconnected (optional)
+└──────────────────┘
+
+I2C address: 0x68
+```
+
+### 3. VL53L0X (Distance sensor)
+
+```
+┌──────────────────┐
+│    VL53L0X       │
+├──────────────────┤
+│ SDA ─────→ GPIO 21 (I2C)
+│ SCL ─────→ GPIO 22 (I2C)
+│ GND ─────→ GND
+│ VCC ─────→ 3.3V
+│ XSHUT ───→ leave unconnected (optional)
+└──────────────────┘
+
+I2C address: 0x29
+```
+
+### 4. LINE SENSOR (Ldabrye 5-sensor)
+
+```
+┌─────────────────────────────┐
+│  Ldabrye Line Sensor Array  │
+├─────────────────────────────┤
+│ S1 (Left)   ─→ GPIO 34 (ADC)
+│ S2          ─→ GPIO 35 (ADC)
+│ S3 (Center) ─→ GPIO 36 (ADC)
+│ S4          ─→ GPIO 39 (ADC)
+│ S5 (Right)  ─→ GPIO 32 (ADC)
+│ GND         ─→ GND
+│ VCC         ─→ 5V
+└─────────────────────────────┘
+```
+
+### 5. GRIPPER (two servos)
+
+```
+┌──────────────────────────┐
+│  Servo Left (MG996R)     │
+├──────────────────────────┤
+│ Signal ────→ GPIO 13 (PWM)
+│ GND ───────→ GND
+│ VCC ───────→ 5V
+└──────────────────────────┘
+
+┌──────────────────────────┐
+│  Servo Right (MG996R)    │
+├──────────────────────────┤
+│ Signal ────→ GPIO 33 (PWM)
+│ GND ───────→ GND
+│ VCC ───────→ 5V
+└──────────────────────────┘
+
+Angles:
+- OPEN (180°) - gripper open
+- CLOSE (90°) - gripper closed
+```
+
+### 6. LEDS (optional)
+
+```
+WiFi LED:
+GPIO 2 → LED+ → ⎕ → 220Ω → GND
+```
+
+### 7. POWER (Very important!)
+
+```
+┌──────────────────────────────┐
+│   Power Distribution         │
+├──────────────────────────────┤
+│ Battery/PSU                  │
+│ ├─→ 5V ────→ 5V rail         │
+│ │  ├─→ Line Sensor VCC       │
+│ │  ├─→ VL53L0X VCC           │
+│ │  └─→ Servo Left + Right    │
+│ │
+│ ├─→ 12V ───→ Motor Driver    │
+│ │  └─→ Stepper Motors        │
+│ │
+│ ├─→ 3.3V ──→ ESP32 (Zener)   │
+│ │  └─→ MPU6050 VCC           │
+│ │
+│ └─→ GND ───→ GND rail (COMMON)│
+│    ├─→ ESP32 GND            │
+│    ├─→ Driver GND           │
+│    ├─→ Sensors GND          │
+│    └─→ Servo GND            │
+└──────────────────────────────┘
+
+⚠️ CRITICAL: 
+- All GNDs must be tied together!
+- Servos need a separate power source (a beefy 5V!)
+- Protect servo signals from motor noise
+```
+
+---
+
+## 🎯 WIRING BOARD (breadboard layout)
+
+```
+I2C (GPIO 21, 22):
+┌─ 3.3V ─ Pull-up 4.7K ─ GPIO 22 (SCL) ─ MPU6050 SCL
+├─ 3.3V ─ Pull-up 4.7K ─ GPIO 21 (SDA) ─ MPU6050 SDA
+│                                      └─ VL53L0X SDA/SCL
+└─ GND ─────────────────────────────── Both sensors GND
+
+ADC (Line Sensors):
+GPIO 34 ← Sensor1 (ADC1_CH6)
+GPIO 35 ← Sensor2 (ADC1_CH7)
+GPIO 36 ← Sensor3 (ADC1_CH0)
+GPIO 39 ← Sensor4 (ADC1_CH3)
+GPIO 32 ← Sensor5 (ADC1_CH4)
+
+Motor Control:
+GPIO 27 → Driver DIR1 → Motor1 DIR
+GPIO 14 → Driver STEP1 → Motor1 STEP
+GPIO 25 → Driver DIR2 → Motor2 DIR
+GPIO 26 → Driver STEP2 → Motor2 STEP
+GPIO 12 → Driver ENABLE
+
+Audio/Visual:
+GPIO 33 → Buzzer
+GPIO 2 → WiFi LED
+```
+
+---
+
+## 📐 SCHEMATIC
+
+```
+                     ┌──────────────────┐
+                     │       ESP32      │
+                     └──────────────────┘
+                              │
+         ┌────────────────────┼─────────────────────┐
+         │                    │                     │
+    ┌────────┐         ┌───────────┐        ┌──────────┐
+    │ Motors │         │ Sensors   │        │ WiFi/Web │
+    │ ────── │         │ ──────── │        │ ──────── │
+    │ M1/M2  │         │ MPU6050   │        │ Interface│
+    │ Driver │         │ VL53L0X   │        │ Browser  │
+    │ 12V    │         │ LineSensor│        │ Joystick │
+    └────────┘         └───────────┘        └──────────┘
+         │                    │                     │
+         └────────────────────┼─────────────────────┘
+                              │
+                         [Battery]
+```
+
+---
+
+## ✅ WIRING CHECK
+
+```
+On the bench:
+1. GPIO 21/22 (I2C) → sensors
+   - SDA → GPIO 21 (MPU6050, VL53L0X)
+   - SCL → GPIO 22 (MPU6050, VL53L0X)
+   - 3.3V, GND
+
+2. GPIO 34/35/36/39/32 (ADC) → line sensor
+   - S1-S5 → GPIO 34/35/36/39/32
+   - 5V, GND
+
+3. GPIO 27/14/25/26/12 (Motor) → driver
+   - DIR/STEP → GPIO 27/14/25/26
+   - Enable → GPIO 12
+   - GND, 12V
+
+4. GPIO 13/33 (PWM) → gripper servos
+   - Servo Left  → GPIO 13
+   - Servo Right → GPIO 33
+   - GND, 5V (separate source!)
+
+5. Verify:
+   [ ] All 3.3V tied together
+   [ ] All GND tied together (COMMON ground!)
+   [ ] MPU6050 + VL53L0X on I2C (GPIO 21/22)
+   [ ] I2C pull-up resistors (4.7K)
+   [ ] Line sensor on GPIO 34/35/36/39/32
+   [ ] Motors on GPIO 27/14/25/26/12
+   [ ] Servos on GPIO 13 and GPIO 33
+   [ ] Servo power separate and beefy!
+   [ ] Motor power 12V separate
+```
+
+---
+
+## 🔍 I2C PULL-UP RESISTORS (IMPORTANT!)
+
+```
+If the sensors don't respond, add:
+
+GPIO 22 (SCL):
+3.3V ──[4.7K]──┬── GPIO 22
+               │
+            MPU6050 SCL
+            VL53L0X SCL
+
+GPIO 21 (SDA):
+3.3V ──[4.7K]──┬── GPIO 21
+               │
+            MPU6050 SDA
+            VL53L0X SDA
+```
+
+---
+
+**Schematic version:** 1.0  
+**Last updated:** 2026-06-07
+
+</details>
+
+<details>
+<summary><b>🇷🇺 Русский</b></summary>
+
+<br>
 
 # 🤖 ESP32 Self-Balancing Robot
 
@@ -525,3 +1065,5 @@ GPIO 21 (SDA):
 
 **Версия схемы:** 1.0  
 **Последнее обновление:** 2026-06-07
+
+</details>
