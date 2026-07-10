@@ -1,5 +1,5 @@
 // ============================================================================
-// ESP32 SELF-BALANCING ROBOT - MONOLITHIC VERSION v3.2.0
+// ESP32 SELF-BALANCING ROBOT - MONOLITHIC VERSION v3.3.1
 // Балансирующий робот на ESP32 с веб-интерфейсом
 // All code combined into single .ino file for ease of deployment
 // ============================================================================
@@ -879,7 +879,7 @@ void readSensors() {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n=== ESP32 Self-Balancing Robot v3.2.0 ===");
+  Serial.println("\n=== ESP32 Self-Balancing Robot v3.3.1 ===");
   pinMode(PIN_ENABLE_MOTORS, OUTPUT);
   digitalWrite(PIN_ENABLE_MOTORS, LOW);
   pinMode(PIN_MOTOR1_DIR, OUTPUT);
