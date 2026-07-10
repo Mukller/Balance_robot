@@ -128,25 +128,21 @@ typedef union accel_t_gyro_union {
 // ============================================================================
 
 // System
-String MAC;
 volatile long counter1 = 0, counter2 = 0;
 hw_timer_t * timer1 = NULL;
 hw_timer_t * timer2 = NULL;
 uint8_t cascade_control_loop_counter = 0, loop_counter = 0;
 uint8_t slow_loop_counter = 0, sendBattery_counter = 0;
-int16_t BatteryValue = 0;
 
-long timer_old, timer_value;
-float debugVariable, dt;
+long timer_old = 0, timer_value = 0;
+float dt = 0;
 
 // Angle & Control
-float angle_adjusted = 0, angle_adjusted_Old = 0, angle_adjusted_filtered = 0;
+float angle_adjusted = 0;
 float Kp = KP, Kd = KD, Kp_thr = KP_THROTTLE, Ki_thr = KI_THROTTLE;
-float Kp_user = KP, Kd_user = KD, Kp_thr_user = KP_THROTTLE, Ki_thr_user = KI_THROTTLE;
 float Kp_position = KP_POSITION, Kd_position = KD_POSITION;
-bool newControlParameters = false, modifing_control_parameters = false;
 int16_t position_error_sum_M1 = 0, position_error_sum_M2 = 0;
-float PID_errorSum = 0, PID_errorOld = 0, PID_errorOld2 = 0, setPointOld = 0;
+float PID_errorSum = 0;
 float target_angle = 0, steering = 0;
 int16_t throttle = 0;
 float max_throttle = MAX_THROTTLE, max_steering = MAX_STEERING;
@@ -164,13 +160,7 @@ int8_t dir_M1 = 0, dir_M2 = 0;
 int16_t actual_robot_speed = 0, actual_robot_speed_Old = 0;
 float estimated_speed_filtered = 0;
 
-// OSC Variables
-uint8_t OSCpage = 0, OSCnewMessage = 0;
-float OSCfader[4] = {0}, OSCxy1_x = 0, OSCxy1_y = 0;
-float OSCxy2_x = 0, OSCxy2_y = 0;
-uint8_t OSCpush[4] = {0}, OSCtoggle[4] = {0};
-uint8_t OSCmove_mode = 0;
-int16_t OSCmove_speed = 0, OSCmove_steps1 = 0, OSCmove_steps2 = 0;
+// OSC Variables (reserved for future use)
 
 // MPU6050
 accel_t_gyro_union accel_t_gyro;
@@ -366,7 +356,7 @@ button.danger:hover { background: #f85149; }
     });
     document.getElementById('distance').textContent = data.distance ?? '--';
     document.getElementById('lineError').textContent = data.lineError ?? '0';
-    document.getElementById('onLine').textContent = (data.distance < 150) ? 'ДА' : 'НЕТ';
+    document.getElementById('onLine').textContent = (data.lineError !== null && Math.abs(data.lineError) < 100) ? 'ДА' : 'НЕТ';
     document.getElementById('angle').textContent = (data.angle || 0).toFixed(1) + '°';
     document.getElementById('onSlope').textContent = data.slope ? 'ДА' : 'НЕТ';
     document.getElementById('throttle').textContent = data.throttle ?? '0';
@@ -672,7 +662,6 @@ void LineFollower_readSensors() {
 }
 
 int16_t LineFollower_calculateError() {
-  LineFollower_readSensors();
   uint32_t total_weight = 0;
   int32_t weighted_sum = 0;
   uint8_t active_sensors = 5;
@@ -740,7 +729,6 @@ bool initMPU6050() {
     Serial.print(cal_attempts);
     Serial.println("/3");
     MPU6050_calibrate();
-    break;
   }
   vTaskDelay(pdMS_TO_TICKS(500));
   Serial.println("[OK] MPU6050 ready");
@@ -776,7 +764,7 @@ bool detectSlope() {
 }
 
 int16_t applySlopeDamping(int16_t speed) {
-  if (on_slope) return (speed * 0.5);
+  if (on_slope) return (speed >> 1);
   return speed;
 }
 
