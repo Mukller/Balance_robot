@@ -927,3 +927,7 @@ void loop() {
     }
   }
 }
+
+// Author: Anton Petnitsky
+// GitHub: https://github.com/Mukller/Balance_robot
+// Last modified: 2026-07-10 14:13:58 +0300

@@ -46,3 +46,7 @@ void setup() {
 void loop() {
   delay(1000);
 }
+
+// Author: Anton Petnitsky
+// GitHub: https://github.com/Mukller/Balance_robot
+// Last modified: 2026-06-10 10:49:14 +0300

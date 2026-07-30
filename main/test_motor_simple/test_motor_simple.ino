@@ -32,3 +32,7 @@ void loop() {
   digitalWrite(STEP2, LOW);
   delayMicroseconds(500);
 }
+
+// Author: Anton Petnitsky
+// GitHub: https://github.com/Mukller/Balance_robot
+// Last modified: 2026-06-10 01:57:13 +0300

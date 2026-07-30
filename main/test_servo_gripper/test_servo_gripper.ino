@@ -107,3 +107,7 @@ void printServoAngle(int angle) {
   Serial.print(angle);
   Serial.println(" deg");
 }
+
+// Author: Anton Petnitsky
+// GitHub: https://github.com/Mukller/Balance_robot
+// Last modified: 2026-06-09 23:10:05 +0300

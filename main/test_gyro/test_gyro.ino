@@ -133,3 +133,7 @@ void writeByte(uint8_t reg, uint8_t value) {
   Wire.write(value);
   Wire.endTransmission(true);
 }
+
+// Author: Anton Petnitsky
+// GitHub: https://github.com/Mukller/Balance_robot
+// Last modified: 2026-06-09 23:20:44 +0300

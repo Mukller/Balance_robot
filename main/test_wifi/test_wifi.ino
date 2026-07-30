@@ -32,3 +32,7 @@ void loop() {
   Serial.println(ESP.getFreeHeap());
   delay(500);
 }
+
+// Author: Anton Petnitsky
+// GitHub: https://github.com/Mukller/Balance_robot
+// Last modified: 2026-06-10 09:39:25 +0300

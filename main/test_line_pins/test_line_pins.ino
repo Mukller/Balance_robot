@@ -70,3 +70,7 @@ void loop() {
   }
   Serial.println();
 }
+
+// Author: Anton Petnitsky
+// GitHub: https://github.com/Mukller/Balance_robot
+// Last modified: 2026-06-10 00:24:08 +0300
