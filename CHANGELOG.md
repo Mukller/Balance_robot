@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Slope detection: Z-axis baseline captured at startup (before: `on_slope` was always true, throttle permanently halved) (#1)
 - PID state corruption from duplicate diagnostic controller calls every 10 loops (`prev_error` reset, double integral accumulation) (#2)
-- VL53L0X moved to continuous mode with `dataReady()` polling — control loop no longer blocked ~33 ms per cycle (#3)
+- VL53L0X moved to continuous mode with register-level data-ready polling (0x13) — control loop no longer blocked ~33 ms per cycle (#3)
 - Speed feedback restored: `actual_robot_speed` estimated from wheel commands with low-pass filter (was stuck at 0 → open-loop speed PI) (#4)
 
 ### Added

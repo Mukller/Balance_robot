@@ -723,6 +723,7 @@ uint8_t LineFollower_getMode() {
 bool initMPU6050() {
   Serial.println("[MPU6050] Initializing...");
   Wire.begin(21, 22);
+  Wire.setClock(400000);
   vTaskDelay(pdMS_TO_TICKS(100));
   MPU6050_setup();
   vTaskDelay(pdMS_TO_TICKS(500));
@@ -780,10 +781,11 @@ void controlLoop() {
     setMotorSpeedM2(0);
     return;
   }
-  // Non-blocking VL53L0X read: pick up the result only when it is ready
-  if (vl53_ready && distanceSensor.dataReady()) {
+  // Non-blocking VL53L0X read (Pololu lib has no public dataReady()):
+  // poll RESULT_INTERRUPT_STATUS (0x13), bits [2:0] == 0x04 => new range ready.
+  // readRangeContinuousMillimeters() then returns immediately and clears the IRQ itself.
+  if (vl53_ready && ((distanceSensor.readReg(0x13) & 0x07) == 0x04)) {
     uint16_t new_mm = distanceSensor.readRangeContinuousMillimeters();
-    distanceSensor.clearInterruptMask();
     if (new_mm > 0 && new_mm != 65535) {
       distance_mm = new_mm;
     }
