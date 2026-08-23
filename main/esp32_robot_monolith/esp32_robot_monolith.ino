@@ -1,5 +1,5 @@
 // ============================================================================
-// ESP32 SELF-BALANCING ROBOT - MONOLITHIC VERSION v3.3.1
+// ESP32 SELF-BALANCING ROBOT - MONOLITHIC VERSION v3.4.0
 // Балансирующий робот на ESP32 с веб-интерфейсом
 // All code combined into single .ino file for ease of deployment
 // ============================================================================
@@ -102,6 +102,9 @@
 #define SLOPE_ACCEL_THRESHOLD 2000
 #define DISTANCE_THRESHOLD 300
 #define STRAIGHT_TIME 2000
+// 1 = auto-start STRAIGHT 5s after boot (legacy behavior)
+// 0 = robot balances in IDLE forever, waits for a command (safer at competitions)
+#define AUTO_START_ON_BOOT 1
 
 // ============================================================================
 // STRUCTURES
@@ -185,6 +188,7 @@ int16_t z_accel_baseline = 0;
 
 // Distance Sensor
 VL53L0X distanceSensor;
+bool vl53_ready = false;
 uint16_t distance_mm = 0;
 
 // ============================================================================
@@ -748,7 +752,9 @@ void initDistanceSensor() {
     return;
   }
   distanceSensor.setMeasurementTimingBudget(33000);
-  Serial.println("[OK] VL53L0X ready");
+  distanceSensor.startContinuous(0);
+  vl53_ready = true;
+  Serial.println("[OK] VL53L0X ready (continuous mode)");
 }
 
 // ============================================================================
@@ -769,14 +775,18 @@ int16_t applySlopeDamping(int16_t speed) {
 }
 
 void controlLoop() {
-  float dt = (timer_value - timer_old) / 1000000.0;
   if (fabsf(angle_adjusted) > 70.0f) {
     setMotorSpeedM1(0);
     setMotorSpeedM2(0);
     return;
   }
-  if (!distanceSensor.timeoutOccurred()) {
-    distance_mm = distanceSensor.readRangeSingleMillimeters();
+  // Non-blocking VL53L0X read: pick up the result only when it is ready
+  if (vl53_ready && distanceSensor.dataReady()) {
+    uint16_t new_mm = distanceSensor.readRangeContinuousMillimeters();
+    distanceSensor.clearInterruptMask();
+    if (new_mm > 0 && new_mm != 65535) {
+      distance_mm = new_mm;
+    }
   }
   if (robot_state != STATE_IDLE && distance_mm > 0 && distance_mm < DISTANCE_THRESHOLD) {
     robot_state = STATE_STOPPED;
@@ -792,16 +802,22 @@ void controlLoop() {
     return;
   }
   on_slope = detectSlope();
+  // Speed feedback: estimate robot speed from commanded wheel speeds (filtered)
+  actual_robot_speed_Old = actual_robot_speed;
+  actual_robot_speed = (speed_M1 + speed_M2) / 2;
+  estimated_speed_filtered = estimated_speed_filtered * 0.85f + (float)actual_robot_speed * 0.15f;
   float balance_output = stabilityPDControl(dt, angle_adjusted, target_angle, Kp, Kd);
-  float speed_output = speedPIControl(dt, actual_robot_speed, throttle, Kp_thr, Ki_thr);
+  float speed_output = speedPIControl(dt, (int16_t)estimated_speed_filtered, throttle, Kp_thr, Ki_thr);
   control_output = balance_output + speed_output;
   switch (robot_state) {
     case STATE_IDLE:
+#if AUTO_START_ON_BOOT
       if ((unsigned long)(millis() - state_start_time) > 5000) {
         robot_state = STATE_STRAIGHT;
         state_start_time = millis();
         Serial.println("[AUTO] IDLE → STRAIGHT (5s balance complete)");
       }
+#endif
       break;
     case STATE_STRAIGHT:
       throttle = 150;
@@ -836,14 +852,12 @@ void controlLoop() {
   setMotorSpeedM1(control_output - steering);
   setMotorSpeedM2(control_output + steering);
   if (loop_counter % 10 == 0) {
-    float diag_balance = stabilityPDControl(dt, angle_adjusted, target_angle, Kp, Kd);
-    float diag_speed = speedPIControl(dt, actual_robot_speed, throttle, Kp_thr, Ki_thr);
     Serial.print("[DBG] A:");
     Serial.print(angle_adjusted, 2);
     Serial.print("° Bal:");
-    Serial.print((int)diag_balance);
+    Serial.print((int)balance_output);
     Serial.print(" Spd:");
-    Serial.print((int)diag_speed);
+    Serial.print((int)speed_output);
     Serial.print(" Out:");
     Serial.print((int)control_output);
     Serial.print(" M1:");
@@ -906,6 +920,10 @@ void setup() {
   Serial.println("[TEST] Motor test complete");
   LineFollower_setMode(LINE_MODE_ON);
   Serial.println("[LineFollower] Mode: ON");
+  MPU6050_read_3axis();
+  z_accel_baseline = accel_t_gyro.value.z_accel;
+  Serial.print("[SLOPE] Z-axis baseline captured: ");
+  Serial.println(z_accel_baseline);
   Serial.println("[BALANCE] Balancing for 5 seconds...");
   state_start_time = millis();
 }
@@ -930,4 +948,4 @@ void loop() {
 
 // Author: Anton Petnitsky
 // GitHub: https://github.com/Mukller/Balance_robot
-// Last modified: 2026-07-10 14:13:58 +0300
+// Last modified: 2026-08-23 12:00:00 +0300
