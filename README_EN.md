@@ -227,6 +227,31 @@ Line sensor:
 - Test the sensor (test_distance_sensor.ino)
 - Adjust DISTANCE_THRESHOLD
 
+### ⚠️ Known issue: motor drivers sometimes "drop out" (DIR pin stops working)
+
+Hardware bug observed at competitions: **periodically one of the stepper drivers stops responding to its DIR pin** — the motor spins in only one direction or freezes completely. The robot gets pulled sideways, balance breaks, run is lost.
+
+**Symptoms:**
+- Motor drives only forward or only backward, direction doesn't change
+- May work again after a restart (then drops out again)
+- One motor spins, the other is dead — even though `test_motors.ino` passed before
+
+**Causes (by frequency):**
+1. **Bad contact** on Dupont wires for DIR/STEP (GPIO 27/25 → DIR, GPIO 14/26 → STEP) — motor vibration loosens the connectors
+2. **Driver overheating** — thermal shutdown kicks in until it cools down
+3. **12V supply sag** when both motors start simultaneously
+4. **Noise from gripper servos** on signal lines (if servos don't have a separate supply)
+
+**What to do (in order):**
+1. Re-seat and ideally **solder** the DIR/STEP wires — contact bounce is cause #1
+2. Check the **common ground**: ESP32 ↔ driver ↔ motor PSU
+3. Touch the driver: hot = thermal protection. Add a heatsink, lower current via Vref
+4. Power the gripper servos from a **strictly separate 5V source**, otherwise noise will take drivers down
+5. Quick driver reset without rebooting: pulse ENABLE (GPIO 12) HIGH then back LOW
+6. **Before every run**, run test_motors.ino (test #4 — different speeds/directions): it catches a dead DIR immediately
+
+> 💡 At a competition: if the robot starts pulling to one side — suspect the driver's DIR pin first, not the PID tuning.
+
 ---
 
 ## ✅ Pre-use checklist
@@ -234,7 +259,9 @@ Line sensor:
 - [ ] ESP32 connected
 - [ ] All sensors connected
 - [ ] WiFi SSID/password entered
-- [ ] test_motors.ino passes
+- [ ] test_motors.ino passes (both rotation directions!)
+- [ ] **DIR pins of both drivers alive** — motors change direction (common failure!)
+- [ ] Drivers not overheating (heatsinks in place)
 - [ ] test_line_sensor.ino works
 - [ ] test_distance_sensor.ino works
 - [ ] The web interface opens
