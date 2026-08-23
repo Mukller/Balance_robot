@@ -268,7 +268,7 @@ Hardware bug observed at competitions: **periodically one of the stepper drivers
 
 ---
 
-**Version:** 3.0 (with web interface)  
+**Version:** 3.4.0 (with web interface)  
 **Status:** ✅ Production Ready
 
 ---
