@@ -18,8 +18,8 @@
 ## 📁 Файлы проекта
 
 ### Основные скетчи:
-- **esp32_robot_main.ino** - основная программа робота
-- **web_interface.h** - веб-интерфейс с джойстиком
+- **esp32_robot_monolith/esp32_robot_monolith.ino** - основная программа робота
+- **web_interface.html** - веб-интерфейс с джойстиком
 
 ### Тестовые скетчи:
 - **test_line_sensor.ino** - тест датчика линии (5 датчиков)
@@ -28,12 +28,9 @@
 - **test_servo_gripper.ino** - тест сервомоторов захвата (две серво)
 - **test_gyro.ino** - тест гироскопа/акселерометра (MPU6050)
 
-### Библиотеки:
-- LineFollower.h/.cpp
-- Control.h/.cpp
-- MPU6050.h/.cpp
-- Motors.h/.cpp
-- defines.h, globals.h/.cpp
+### Код:
+- Вся логика робота собрана в монолите `esp32_robot_monolith/esp32_robot_monolith.ino` (WiFi, веб-интерфейс, сенсоры, моторы, манипулятор)
+- Веб-интерфейс: [`main/web_interface.html`](main/web_interface.html)
 
 ---
 
@@ -41,7 +38,7 @@
 
 ### 1. Редактировать WiFi
 
-В **esp32_robot_main.ino**:
+В **esp32_robot_monolith.ino**:
 ```cpp
 String sta_ssid = "YourWiFiSSID";
 String sta_password = "YourWiFiPassword";

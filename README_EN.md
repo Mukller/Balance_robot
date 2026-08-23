@@ -18,8 +18,8 @@ An autonomous two-wheeled self-balancing robot with line following, obstacle det
 ## 📁 Project files
 
 ### Main sketches:
-- **esp32_robot_main.ino** - the robot's main program
-- **web_interface.h** - web interface with a joystick
+- **esp32_robot_monolith/esp32_robot_monolith.ino** - the robot's main program
+- **web_interface.html** - web interface with a joystick
 
 ### Test sketches:
 - **test_line_sensor.ino** - line sensor test (5 sensors)
@@ -28,12 +28,9 @@ An autonomous two-wheeled self-balancing robot with line following, obstacle det
 - **test_servo_gripper.ino** - gripper servo test (two servos)
 - **test_gyro.ino** - gyroscope/accelerometer test (MPU6050)
 
-### Libraries:
-- LineFollower.h/.cpp
-- Control.h/.cpp
-- MPU6050.h/.cpp
-- Motors.h/.cpp
-- defines.h, globals.h/.cpp
+### Code:
+- All robot logic lives in the monolith `esp32_robot_monolith/esp32_robot_monolith.ino` (WiFi, web UI, sensors, motors, gripper)
+- Web interface: [`main/web_interface.html`](main/web_interface.html)
 
 ---
 
@@ -41,7 +38,7 @@ An autonomous two-wheeled self-balancing robot with line following, obstacle det
 
 ### 1. Edit WiFi
 
-In **esp32_robot_main.ino**:
+In **esp32_robot_monolith.ino**:
 ```cpp
 String sta_ssid = "YourWiFiSSID";
 String sta_password = "YourWiFiPassword";
