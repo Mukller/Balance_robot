@@ -23,4 +23,4 @@ cd Balance_robot
 - Verify PID tuning
 - Check power consumption
 
-Thank you! 🤖
+Thank you!

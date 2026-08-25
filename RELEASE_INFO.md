@@ -2,34 +2,34 @@
 
 ## Latest Release: v3.0
 
-**Release Date:** 2026-06-07  
+**Release Date:** 2026-06-07
 **Status:** Stable & Production Ready
 
 ### What's New in v3.0
 
 #### Web Interface
-- 🎮 Interactive joystick control
-- 📊 Real-time sensor data display
-- 📱 Mobile-friendly design
-- 🎨 Dark theme UI
+- Interactive joystick control
+- Real-time sensor data display
+- Mobile-friendly design
+- Dark theme UI
 
 #### Main Program
-- ✅ 2-second straight → auto line following
-- ✅ Slope detection with 2x speed reduction
-- ✅ Obstacle avoidance (emergency stop)
-- ✅ WiFi web control panel
+- 2-second straight → auto line following
+- Slope detection with 2x speed reduction
+- Obstacle avoidance (emergency stop)
+- WiFi web control panel
 
 #### Testing & Debugging
-- ✅ Line sensor test sketch
-- ✅ Distance sensor test sketch
-- ✅ Motor control test sketch
-- ✅ Serial output for all tests
+- Line sensor test sketch
+- Distance sensor test sketch
+- Motor control test sketch
+- Serial output for all tests
 
 #### Documentation
-- 📋 Complete wiring diagram
-- 🔌 GPIO pinout documentation
-- 📊 Breadboard layout guide
-- 🎯 Troubleshooting guide
+- Complete wiring diagram
+- GPIO pinout documentation
+- Breadboard layout guide
+- Troubleshooting guide
 
 ### Installation
 
@@ -71,11 +71,11 @@ None reported in v3.0
 
 ### Tested On
 
-- ✅ Arduino IDE 1.8.19
-- ✅ ESP32 rev1
-- ✅ Windows 11
-- ✅ Ubuntu 22.04
-- ✅ macOS Monterey
+- Arduino IDE 1.8.19
+- ESP32 rev1
+- Windows 11
+- Ubuntu 22.04
+- macOS Monterey
 
 ### Performance
 
@@ -160,7 +160,7 @@ If upgrading from v2.0:
 
 ### Download
 
-**Source Code:** https://github.com/Mukller/Balance_robot  
+**Source Code:** https://github.com/Mukller/Balance_robot
 **Latest Release:** https://github.com/Mukller/Balance_robot/releases/tag/v3.0
 
 ### Contributors
@@ -173,6 +173,6 @@ MIT License - See LICENSE.md for details
 
 ---
 
-**Last Updated:** 2026-06-07  
-**Maintained By:** Anton (@Mukller)  
+**Last Updated:** 2026-06-07
+**Maintained By:** Anton (@Mukller)
 **Repository:** https://github.com/Mukller/Balance_robot

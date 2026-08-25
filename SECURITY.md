@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| Latest  | ✅        |
+| Latest  |        |
 
 ## Reporting a Vulnerability
 
@@ -41,4 +41,4 @@ We appreciate responsible disclosure. All valid reports will be acknowledged.
 
 ---
 
-**Thank you for helping keep this project secure!** 🔐
+**Thank you for helping keep this project secure!**

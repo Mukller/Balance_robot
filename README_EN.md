@@ -4,7 +4,7 @@
 
 </div>
 
-# 🤖 ESP32 Self-Balancing Robot
+# ESP32 Self-Balancing Robot
 
 <p align="center">
   <a href="https://github.com/Mukller">
@@ -15,7 +15,7 @@
 
 An autonomous two-wheeled self-balancing robot with line following, obstacle detection, and control via a web interface.
 
-## 📁 Project files
+## Project files
 
 ### Main sketches:
 - **esp32_robot_monolith/esp32_robot_monolith.ino** - the robot's main program
@@ -34,7 +34,7 @@ An autonomous two-wheeled self-balancing robot with line following, obstacle det
 
 ---
 
-## ⚡ Quick start
+## Quick start
 
 ### 1. Edit WiFi
 
@@ -59,7 +59,7 @@ http://192.168.X.X
 
 ---
 
-## 🎮 Control (web interface)
+## Control (web interface)
 
 ### Joystick
 - **Up-down** = Throttle (speed)
@@ -78,22 +78,22 @@ http://192.168.X.X
 
 ---
 
-## 🤖 How the robot works
+## How the robot works
 
 ```
 1. IDLE (waiting for a command)
    ├─ "Straight" button → STRAIGHT
    ├─ "Line" button → LINE_FOLLOW
    └─ Gripper button → Open/Close (independent)
-   
+
 2. STRAIGHT (2 sec forward motion)
    └─ Automatic transition → LINE_FOLLOW
-   
+
 3. LINE_FOLLOW (follows the line)
    ├─ If it sees an obstacle → STOPPED
    ├─ If on a slope → slow down (×0.5)
    └─ Gripper is controlled separately
-   
+
 4. STOPPED (obstacle detected)
    ├─ Motors stopped
    └─ "Stop" button → IDLE
@@ -105,7 +105,7 @@ Gripper (independent):
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ### 1. Line sensor test
 
@@ -166,7 +166,7 @@ Gripper (independent):
 
 ---
 
-## 🔧 Parameters in code
+## Parameters in code
 
 ```cpp
 #define DISTANCE_THRESHOLD 300      // Stop < 300mm
@@ -178,7 +178,7 @@ Gripper (independent):
 
 ---
 
-## 📊 GPIO wiring (ESP32)
+## GPIO wiring (ESP32)
 
 ```
 I2C (for sensors):
@@ -206,7 +206,7 @@ Line sensor:
 
 ---
 
-## 🐛 Help
+## Help
 
 **The robot won't connect:**
 - Check the WiFi SSID/password
@@ -224,7 +224,7 @@ Line sensor:
 - Test the sensor (test_distance_sensor.ino)
 - Adjust DISTANCE_THRESHOLD
 
-### ⚠️ Known issue: motor drivers sometimes "drop out" (DIR pin stops working)
+### Known issue: motor drivers sometimes "drop out" (DIR pin stops working)
 
 Hardware bug observed at competitions: **periodically one of the stepper drivers stops responding to its DIR pin** — the motor spins in only one direction or freezes completely. The robot gets pulled sideways, balance breaks, run is lost.
 
@@ -247,11 +247,11 @@ Hardware bug observed at competitions: **periodically one of the stepper drivers
 5. Quick driver reset without rebooting: pulse ENABLE (GPIO 12) HIGH then back LOW
 6. **Before every run**, run test_motors.ino (test #4 — different speeds/directions): it catches a dead DIR immediately
 
-> 💡 At a competition: if the robot starts pulling to one side — suspect the driver's DIR pin first, not the PID tuning.
+> At a competition: if the robot starts pulling to one side — suspect the driver's DIR pin first, not the PID tuning.
 
 ---
 
-## ✅ Pre-use checklist
+## Pre-use checklist
 
 - [ ] ESP32 connected
 - [ ] All sensors connected
@@ -265,12 +265,12 @@ Hardware bug observed at competitions: **periodically one of the stepper drivers
 
 ---
 
-**Version:** 3.4.0 (with web interface)  
-**Status:** ✅ Production Ready
+**Version:** 3.4.0 (with web interface)
+**Status:** Production Ready
 
 ---
 
-## 🔌 FULL WIRING DIAGRAM
+## FULL WIRING DIAGRAM
 
 ### ESP32 Pinout (30 pin version)
 
@@ -301,7 +301,7 @@ Hardware bug observed at competitions: **periodically one of the stepper drivers
 
 ---
 
-## 📋 DETAILED COMPONENT WIRING
+## DETAILED COMPONENT WIRING
 
 ### 1. MOTORS (NEMA17 stepper with driver)
 
@@ -435,7 +435,7 @@ GPIO 2 → LED+ → ⎕ → 220Ω → GND
 │    └─→ Servo GND            │
 └──────────────────────────────┘
 
-⚠️ CRITICAL: 
+CRITICAL:
 - All GNDs must be tied together!
 - Servos need a separate power source (a beefy 5V!)
 - Protect servo signals from motor noise
@@ -443,7 +443,7 @@ GPIO 2 → LED+ → ⎕ → 220Ω → GND
 
 ---
 
-## 🎯 WIRING BOARD (breadboard layout)
+## WIRING BOARD (breadboard layout)
 
 ```
 I2C (GPIO 21, 22):
@@ -473,7 +473,7 @@ GPIO 2 → WiFi LED
 
 ---
 
-## 📐 SCHEMATIC
+## SCHEMATIC
 
 ```
                      ┌──────────────────┐
@@ -497,7 +497,7 @@ GPIO 2 → WiFi LED
 
 ---
 
-## ✅ WIRING CHECK
+## WIRING CHECK
 
 ```
 On the bench:
@@ -534,7 +534,7 @@ On the bench:
 
 ---
 
-## 🔍 I2C PULL-UP RESISTORS (IMPORTANT!)
+## I2C PULL-UP RESISTORS (IMPORTANT!)
 
 ```
 If the sensors don't respond, add:
@@ -554,5 +554,5 @@ GPIO 21 (SDA):
 
 ---
 
-**Schematic version:** 1.0  
+**Schematic version:** 1.0
 **Last updated:** 2026-06-07

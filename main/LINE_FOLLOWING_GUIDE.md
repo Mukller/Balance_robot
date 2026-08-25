@@ -15,15 +15,15 @@
 ### Шаг 1: Разберитесь с датчиками линии
 
 Пины датчиков:
-- **GPIO 34** (Sensor 0, LEFT) — ✅ РАБОТАЕТ (АЦП с pull-up)
-- **GPIO 35** (Sensor 1, L-CENTER) — ⚠️ МОЖЕТ НЕ РАБОТАТЬ (input-only)
-- **GPIO 36** (Sensor 2, CENTER) — ⚠️ МОЖЕТ НЕ РАБОТАТЬ (input-only)
-- **GPIO 39** (Sensor 3, R-CENTER) — ⚠️ МОЖЕТ НЕ РАБОТАТЬ (input-only)
-- **GPIO 32** (Sensor 4, RIGHT) — ✅ РАБОТАЕТ (АЦП с pull-up)
+- **GPIO 34** (Sensor 0, LEFT) — РАБОТАЕТ (АЦП с pull-up)
+- **GPIO 35** (Sensor 1, L-CENTER) — МОЖЕТ НЕ РАБОТАТЬ (input-only)
+- **GPIO 36** (Sensor 2, CENTER) — МОЖЕТ НЕ РАБОТАТЬ (input-only)
+- **GPIO 39** (Sensor 3, R-CENTER) — МОЖЕТ НЕ РАБОТАТЬ (input-only)
+- **GPIO 32** (Sensor 4, RIGHT) — РАБОТАЕТ (АЦП с pull-up)
 
 **Проблема**: GPIO 35/36/39 — input-only пины без встроенных подтяжек резисторов.
 
-**Решение**: 
+**Решение**:
 - Добавить внешние pull-up резисторы **10кОм к 3.3V** на пины 35, 36, 39
 - ИЛИ использовать только датчики 0 и 4 (крайние) — они работают и системе достаточно
 
