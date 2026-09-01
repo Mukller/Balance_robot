@@ -895,7 +895,7 @@ void readSensors() {
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n=== ESP32 Self-Balancing Robot v3.3.1 ===");
+  Serial.println("\n=== ESP32 Self-Balancing Robot v3.4.0 ===");
   pinMode(PIN_ENABLE_MOTORS, OUTPUT);
   digitalWrite(PIN_ENABLE_MOTORS, LOW);
   pinMode(PIN_MOTOR1_DIR, OUTPUT);
