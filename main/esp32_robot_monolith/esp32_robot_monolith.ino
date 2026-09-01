@@ -4,9 +4,37 @@
 // All code combined into single .ino file for ease of deployment
 // ============================================================================
 
+// Build-time feature flags MUST be defined before the includes section
+// 1 = auto-start STRAIGHT 5s after boot (legacy behavior)
+// 0 = robot balances in IDLE forever, waits for a command (safer at competitions)
+#define AUTO_START_ON_BOOT 1
+// 1 = run a 1s spin test in setup() (diagnostic, robot will roll)
+// 0 = skip the test, safer if robot is already on its wheels
+#define SKIP_SETUP_MOTOR_TEST 1
+// 1 = enable line-following mode at boot
+// 0 = robot only balances, no line following (line sensor still readable via /api/status)
+#define LINE_MODE_ENABLED 1
+// 1 = start WiFi + AsyncWebServer (requires AsyncTCP + ESPAsyncWebServer libs in libraries/)
+#define ENABLE_WIFI 1
+// AP mode fallback when no WiFi creds are stored / sketch can not connect
+#define WIFI_AP_FALLBACK 1
+#define WIFI_AP_SSID "BalanceRobot-Setup"
+#define WIFI_AP_PASS "balance123"      // at least 8 chars for WPA2
+// How long to wait for STA connection before falling back to AP (ms)
+#define WIFI_CONNECT_TIMEOUT_MS 10000
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <VL53L0X.h>
+#if ENABLE_WIFI
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <Preferences.h>
+#if __has_include("secrets.h")
+  #include "secrets.h"
+#endif
+#endif
 
 // ============================================================================
 // DEFINES & CONFIGURATION
@@ -29,7 +57,6 @@
 #define LINE_SENSOR_4 39   // GPIO 39 (right-center)
 #define LINE_SENSOR_5 32   // GPIO 32 (right)
 
-#define LINE_THRESHOLD 2000
 #define LINE_SENSOR_SAMPLES 5
 #define LINE_MAX_ERROR 200
 #define LINE_MODE_OFF 0
@@ -40,45 +67,29 @@
 #define MAX_THROTTLE 550
 #define MAX_STEERING 140
 #define MAX_TARGET_ANGLE 14
-#define MAX_THROTTLE_PRO 780
-#define MAX_STEERING_PRO 260
-#define MAX_TARGET_ANGLE_PRO 26
 
 #define KP 0.32
 #define KD 0.050
 #define KP_THROTTLE 0.080
 #define KI_THROTTLE 0.1
-#define KP_POSITION 0.06
-#define KD_POSITION 0.45
-
-#define KP_RAISEUP 0.1
-#define KD_RAISEUP 0.16
-#define KP_THROTTLE_RAISEUP 0
-#define KI_THROTTLE_RAISEUP 0.0
 
 #define MAX_CONTROL_OUTPUT 500
 #define ITERM_MAX_ERROR 30
 #define ITERM_MAX 10000
 #define ANGLE_OFFSET 0.0
 
-#define SERVO_AUX_NEUTRO 4444
-#define SERVO_MIN_PULSEWIDTH SERVO_AUX_NEUTRO - 2700
-#define SERVO_MAX_PULSEWIDTH SERVO_AUX_NEUTRO + 2700
-#define SERVO2_NEUTRO 4444
-#define SERVO2_RANGE 8400
-
 #define ZERO_SPEED 0xffffff
 #define MAX_ACCEL 14
 #define MICROSTEPPING 8
 
 #define RAD2GRAD 57.2957795
-#define GRAD2RAD 0.01745329251994329576923690768489
 
 // Robot States
 #define STATE_IDLE 0
 #define STATE_STRAIGHT 1
 #define STATE_LINE_FOLLOW 2
 #define STATE_STOPPED 3
+#define STATE_MANUAL 4
 
 // MPU6050 Register Definitions
 #define MPU6050_I2C_ADDRESS 0x68
@@ -102,9 +113,22 @@
 #define SLOPE_ACCEL_THRESHOLD 2000
 #define DISTANCE_THRESHOLD 300
 #define STRAIGHT_TIME 2000
-// 1 = auto-start STRAIGHT 5s after boot (legacy behavior)
-// 0 = robot balances in IDLE forever, waits for a command (safer at competitions)
-#define AUTO_START_ON_BOOT 1
+#define STOPPED_RESUME_DISTANCE 350   // resume when obstacle clears this far (mm)
+#define STOPPED_RESUME_HOLD_MS 1000   // hold-clear time before auto-resume
+
+// (feature flags AUTO_START_ON_BOOT / SKIP_SETUP_MOTOR_TEST / LINE_MODE_ENABLED /
+//  ENABLE_WIFI / WIFI_AP_FALLBACK / WIFI_AP_SSID / WIFI_AP_PASS / WIFI_CONNECT_TIMEOUT_MS
+//  live at the very top of the file, before the includes section)
+// Pin/timeout config
+#define WIRE_TIMEOUT_MS 50             // I2C bus timeout (ms) — fail-fast on hung Wire
+#define I2C_CLOCK_HZ 400000
+// MPU sanity — if angle beyond this, emergency-stop
+#define EMERGENCY_TILT_DEG 70.0f
+// True step-based odometry speed PI scaler: per-10ms step delta * SCALE ~= speed_M1 units
+// Derived from setMotorSpeed: step rate = speed_M1 * 25 / 2 Hz -> d per 10ms = speed_M1 * 0.125
+// SCALE = 1 / 0.125 = 8
+#define SPEED_ODOM_SCALE 8
+#define SPEED_ODOM_FILTER 0.30f        // low-pass on odometry feedback
 
 // ============================================================================
 // STRUCTURES
@@ -131,11 +155,9 @@ typedef union accel_t_gyro_union {
 // ============================================================================
 
 // System
-volatile long counter1 = 0, counter2 = 0;
 hw_timer_t * timer1 = NULL;
 hw_timer_t * timer2 = NULL;
 uint8_t cascade_control_loop_counter = 0, loop_counter = 0;
-uint8_t slow_loop_counter = 0, sendBattery_counter = 0;
 
 long timer_old = 0, timer_value = 0;
 float dt = 0;
@@ -143,33 +165,29 @@ float dt = 0;
 // Angle & Control
 float angle_adjusted = 0;
 float Kp = KP, Kd = KD, Kp_thr = KP_THROTTLE, Ki_thr = KI_THROTTLE;
-float Kp_position = KP_POSITION, Kd_position = KD_POSITION;
-int16_t position_error_sum_M1 = 0, position_error_sum_M2 = 0;
 float PID_errorSum = 0;
 float target_angle = 0, steering = 0;
 int16_t throttle = 0;
 float max_throttle = MAX_THROTTLE, max_steering = MAX_STEERING;
-float max_target_angle = MAX_TARGET_ANGLE, control_output = 0, angle_offset = ANGLE_OFFSET;
-boolean positionControlMode = false;
-uint8_t mode = 0;
+float control_output = 0, angle_offset = ANGLE_OFFSET;
 
 // Motors
-int16_t motor1 = 0, motor2 = 0;
 volatile int32_t steps1 = 0, steps2 = 0;
-int32_t target_steps1 = 0, target_steps2 = 0;
-int16_t motor1_control = 0, motor2_control = 0;
 int16_t speed_M1 = 0, speed_M2 = 0;
 int8_t dir_M1 = 0, dir_M2 = 0;
 int16_t actual_robot_speed = 0, actual_robot_speed_Old = 0;
 float estimated_speed_filtered = 0;
 
-// OSC Variables (reserved for future use)
+// True step-based odometry (per-10ms control cycle, scaled)
+int32_t last_steps1 = 0, last_steps2 = 0;
 
 // MPU6050
 accel_t_gyro_union accel_t_gyro;
 float x_gyro_value = 0, x_gyro_offset = 0, accel_angle = 0, angle = 0;
-uint8_t swap_var;
-#define SWAP(x,y) swap_var = x; x = y; y = swap_var
+volatile int8_t mpu_last_error = 0;
+
+// SWAP macro kept for MPU byte-swap; uses function-local storage
+#define SWAP(x,y) do { uint8_t _s = (x); (x) = (y); (y) = _s; } while (0)
 
 // Line Follower
 int16_t line_sensor_raw[5] = {0}, line_sensor_calibrated[5] = {0};
@@ -185,17 +203,30 @@ volatile uint8_t robot_state = STATE_IDLE;
 unsigned long state_start_time = 0;
 volatile bool on_slope = false;
 int16_t z_accel_baseline = 0;
+unsigned long obstacle_clear_since_ms = 0;  // for STATE_STOPPED auto-resume
 
 // Distance Sensor
 VL53L0X distanceSensor;
 bool vl53_ready = false;
 uint16_t distance_mm = 0;
 
+#if ENABLE_WIFI
+// WiFi state
+enum WiFiMode { WIFI_OFFLINE, WIFI_CONNECTING, WIFI_AP_MODE, WIFI_STA_OK };
+WiFiMode wifi_mode = WIFI_OFFLINE;
+AsyncWebServer webServer(80);
+bool api_manual_throttle = false;  // joystick override flag
+int16_t api_manual_throttle_val = 0;
+int16_t api_manual_steering_val = 0;
+unsigned long wifi_led_toggle_ms = 0;
+bool wifi_led_state = false;
+#endif
+
 // ============================================================================
-// WEB INTERFACE HTML (EMBEDDED)
+// WEB INTERFACE HTML (EMBEDDED, stored in flash via PROGMEM)
 // ============================================================================
 
-const char* webUI = R"rawliteral(
+const char webUI[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -402,12 +433,6 @@ float speedPIControl(float DT, int16_t input, int16_t setPoint, float Kp, float 
   return output;
 }
 
-float positionPDControl(long actualPos, long setPointPos, float Kpp, float Kdp, int16_t speedM) {
-  float P = constrain(Kpp * float(setPointPos - actualPos), -115, 115);
-  float output = P + Kdp * float(speedM);
-  return output;
-}
-
 // ============================================================================
 // MOTOR FUNCTIONS (with Timer API v3.x)
 // ============================================================================
@@ -580,7 +605,8 @@ void MPU6050_setup() {
 }
 
 void MPU6050_read_3axis() {
-  int error = MPU6050_read(MPU6050_ACCEL_XOUT_H, (uint8_t *)&accel_t_gyro, sizeof(accel_t_gyro));
+  mpu_last_error = MPU6050_read(MPU6050_ACCEL_XOUT_H, (uint8_t *)&accel_t_gyro, sizeof(accel_t_gyro));
+  if (mpu_last_error != 0) return;  // leave previous data; controlLoop will notice
   SWAP(accel_t_gyro.reg.x_accel_h, accel_t_gyro.reg.x_accel_l);
   SWAP(accel_t_gyro.reg.y_accel_h, accel_t_gyro.reg.y_accel_l);
   SWAP(accel_t_gyro.reg.z_accel_h, accel_t_gyro.reg.z_accel_l);
@@ -776,11 +802,17 @@ int16_t applySlopeDamping(int16_t speed) {
 }
 
 void controlLoop() {
-  if (fabsf(angle_adjusted) > 70.0f) {
+  // Emergency: angle past limit OR MPU I2C error -> stop motors, keep monitoring.
+  if (fabsf(angle_adjusted) > EMERGENCY_TILT_DEG || mpu_last_error != 0) {
     setMotorSpeedM1(0);
     setMotorSpeedM2(0);
+    if (mpu_last_error != 0 && (loop_counter % 50) == 0) {
+      Serial.print("[MPU ERR] code=");
+      Serial.println((int)mpu_last_error);
+    }
     return;
   }
+
   // Non-blocking VL53L0X read (Pololu lib has no public dataReady()):
   // poll RESULT_INTERRUPT_STATUS (0x13), bits [2:0] == 0x04 => new range ready.
   // readRangeContinuousMillimeters() then returns immediately and clears the IRQ itself.
@@ -790,10 +822,13 @@ void controlLoop() {
       distance_mm = new_mm;
     }
   }
+
+  // Obstacle check applies to all autonomous states; STATE_MANUAL still reacts for safety
   if (robot_state != STATE_IDLE && distance_mm > 0 && distance_mm < DISTANCE_THRESHOLD) {
     robot_state = STATE_STOPPED;
     throttle = 0;
     steering = 0;
+    obstacle_clear_since_ms = 0;
     setMotorSpeedM1(0);
     setMotorSpeedM2(0);
     if (loop_counter % 100 == 0) {
@@ -803,21 +838,31 @@ void controlLoop() {
     }
     return;
   }
+
   on_slope = detectSlope();
-  // Speed feedback: estimate robot speed from commanded wheel speeds (filtered)
+
+  // True step-based odometry: read step counters atomically, compute delta since last cycle
+  // (forward = previous - current, per ISR sign convention). Scale to speed_M units.
+  int32_t d1 = last_steps1 - steps1;
+  int32_t d2 = last_steps2 - steps2;
+  last_steps1 = steps1;
+  last_steps2 = steps2;
   actual_robot_speed_Old = actual_robot_speed;
-  actual_robot_speed = (speed_M1 + speed_M2) / 2;
-  estimated_speed_filtered = estimated_speed_filtered * 0.85f + (float)actual_robot_speed * 0.15f;
+  actual_robot_speed = (int16_t)(((int32_t)(d1 + d2) * SPEED_ODOM_SCALE) / 2);
+  estimated_speed_filtered = estimated_speed_filtered * (1.0f - SPEED_ODOM_FILTER)
+                            + (float)actual_robot_speed * SPEED_ODOM_FILTER;
+
   float balance_output = stabilityPDControl(dt, angle_adjusted, target_angle, Kp, Kd);
   float speed_output = speedPIControl(dt, (int16_t)estimated_speed_filtered, throttle, Kp_thr, Ki_thr);
   control_output = balance_output + speed_output;
+
   switch (robot_state) {
     case STATE_IDLE:
 #if AUTO_START_ON_BOOT
       if ((unsigned long)(millis() - state_start_time) > 5000) {
         robot_state = STATE_STRAIGHT;
         state_start_time = millis();
-        Serial.println("[AUTO] IDLE → STRAIGHT (5s balance complete)");
+        Serial.println("[AUTO] IDLE -> STRAIGHT (5s balance complete)");
       }
 #endif
       break;
@@ -826,7 +871,7 @@ void controlLoop() {
       steering = 0;
       if ((unsigned long)(millis() - state_start_time) > STRAIGHT_TIME) {
         robot_state = STATE_LINE_FOLLOW;
-        Serial.println("[AUTO] STRAIGHT → LINE_FOLLOW");
+        Serial.println("[AUTO] STRAIGHT -> LINE_FOLLOW");
       }
       break;
     case STATE_LINE_FOLLOW:
@@ -839,14 +884,33 @@ void controlLoop() {
       }
       break;
     case STATE_STOPPED:
+      // Auto-resume once obstacle has been clear for STOPPED_RESUME_HOLD_MS
       throttle = 0;
       steering = 0;
+      if (distance_mm > STOPPED_RESUME_DISTANCE) {
+        if (obstacle_clear_since_ms == 0) {
+          obstacle_clear_since_ms = millis();
+        } else if ((unsigned long)(millis() - obstacle_clear_since_ms) > STOPPED_RESUME_HOLD_MS) {
+          robot_state = STATE_LINE_FOLLOW;
+          obstacle_clear_since_ms = 0;
+          Serial.println("[AUTO] STOPPED -> LINE_FOLLOW (obstacle cleared)");
+        }
+      } else {
+        obstacle_clear_since_ms = 0;
+      }
+      break;
+    case STATE_MANUAL:
+      // Joystick values written by /api/joystick handler
+      throttle = api_manual_throttle_val;
+      steering = api_manual_steering_val;
       break;
   }
+
+  // Slope damping slows forward motion only — NEVER touch balance_output, that is
+  // exactly when full correction is needed.
   if (on_slope) {
     throttle = applySlopeDamping(throttle);
     steering = applySlopeDamping(steering);
-    control_output = applySlopeDamping(control_output);
   }
   control_output = constrain(control_output, -MAX_CONTROL_OUTPUT, MAX_CONTROL_OUTPUT);
   steering = constrain(steering, -max_steering, max_steering);
@@ -856,7 +920,7 @@ void controlLoop() {
   if (loop_counter % 10 == 0) {
     Serial.print("[DBG] A:");
     Serial.print(angle_adjusted, 2);
-    Serial.print("° Bal:");
+    Serial.print("\xb0 Bal:");  // ° in extended ASCII for ASCII-clean terminals
     Serial.print((int)balance_output);
     Serial.print(" Spd:");
     Serial.print((int)speed_output);
@@ -890,29 +954,282 @@ void readSensors() {
 }
 
 // ============================================================================
+// SERVO (gripper)
+// ============================================================================
+#if ENABLE_WIFI
+// 50Hz PWM, 16-bit: 1ms pulse = ~3277 ticks
+#define SERVO_PWM_FREQ  50
+#define SERVO_PWM_RES   16
+#define SERVO_TICKS_PER_US 3.2768f
+#define SERVO_MIN_US    1000
+#define SERVO_MAX_US    2000
+#define SERVO_OPEN_DEG  180
+#define SERVO_CLOSE_DEG 90
+
+static bool servo_attached = false;
+static int  servo_left_deg  = 0;
+static int  servo_right_deg = 0;
+
+void servoAttachOnce() {
+  if (servo_attached) return;
+  ledcAttach(PIN_SERVO_LEFT,  SERVO_PWM_FREQ, SERVO_PWM_RES);
+  ledcAttach(PIN_SERVO_RIGHT, SERVO_PWM_FREQ, SERVO_PWM_RES);
+  servo_attached = true;
+}
+
+void setServoAngle(int pin, int angle) {
+  servoAttachOnce();
+  angle = constrain(angle, 0, 180);
+  int pulse_us = SERVO_MIN_US + (angle * (SERVO_MAX_US - SERVO_MIN_US)) / 180;
+  int pwm = (int)(pulse_us * SERVO_TICKS_PER_US);
+  ledcWrite(pin, pwm);
+}
+
+void gripperOpen()  { setServoAngle(PIN_SERVO_LEFT, SERVO_OPEN_DEG);  setServoAngle(PIN_SERVO_RIGHT, SERVO_OPEN_DEG);  servo_left_deg = servo_right_deg = SERVO_OPEN_DEG; }
+void gripperClose() { setServoAngle(PIN_SERVO_LEFT, SERVO_CLOSE_DEG); setServoAngle(PIN_SERVO_RIGHT, SERVO_CLOSE_DEG); servo_left_deg = servo_right_deg = SERVO_CLOSE_DEG; }
+void gripperReset() { setServoAngle(PIN_SERVO_LEFT, 0);               setServoAngle(PIN_SERVO_RIGHT, 0);               servo_left_deg = servo_right_deg = 0; }
+#endif
+
+// ============================================================================
+// WIFI + WEB API
+// ============================================================================
+#if ENABLE_WIFI
+static const char WIFI_NAMESPACE[] = "balance_robot";
+static const char PREF_SSID[]      = "ssid";
+static const char PREF_PASS[]      = "pass";
+static const char PREF_BLANK[]     = "";
+
+// Non-blocking WiFi LED blinker (called from loop())
+void wifiLedTick() {
+  unsigned long now = millis();
+  bool target = false;
+  switch (wifi_mode) {
+    case WIFI_OFFLINE:    target = false; break;
+    case WIFI_CONNECTING: target = (now % 400) < 200; break;     // fast blink
+    case WIFI_AP_MODE:    target = (now % 1500) < 300; break;    // slow blink
+    case WIFI_STA_OK:     target = true; break;                  // solid
+  }
+  if (target != wifi_led_state) {
+    wifi_led_state = target;
+    digitalWrite(PIN_WIFI_LED, target ? HIGH : LOW);
+  }
+}
+
+bool wifiLoadCreds(String &ssid, String &pass) {
+  Preferences prefs;
+  prefs.begin(WIFI_NAMESPACE, true);
+  ssid = prefs.getString(PREF_SSID, PREF_BLANK);
+  pass = prefs.getString(PREF_PASS, PREF_BLANK);
+  prefs.end();
+  return ssid.length() > 0;
+}
+
+void wifiSaveCreds(const String &ssid, const String &pass) {
+  Preferences prefs;
+  prefs.begin(WIFI_NAMESPACE, false);
+  prefs.putString(PREF_SSID, ssid);
+  prefs.putString(PREF_PASS, pass);
+  prefs.end();
+}
+
+// Build a JSON status blob (no ArduinoJson lib needed, hand-rolled)
+String buildStatusJson() {
+  char buf[640];
+  int n = snprintf(buf, sizeof(buf),
+    "{\"state\":%u,\"stateName\":\"%s\",\"distance\":%u,\"lineError\":%d,"
+    "\"angle\":%.2f,\"onSlope\":%s,\"throttle\":%d,\"speedM1\":%d,\"speedM2\":%d,"
+    "\"m1\":%d,\"m2\":%d,\"lineSensors\":[%d,%d,%d,%d,%d],"
+    "\"servoLeft\":%d,\"servoRight\":%d,"
+    "\"wifi\":\"%s\",\"heap\":%u",
+    (unsigned)robot_state,
+    (robot_state==STATE_IDLE)?"IDLE":(robot_state==STATE_STRAIGHT)?"STRAIGHT":
+    (robot_state==STATE_LINE_FOLLOW)?"LINE":(robot_state==STATE_STOPPED)?"STOPPED":"MANUAL",
+    (unsigned)distance_mm,
+    (int)line_position_error,
+    (double)angle_adjusted,
+    on_slope?"true":"false",
+    (int)throttle, (int)speed_M1, (int)speed_M2,
+    (int)(control_output - steering), (int)(control_output + steering),
+    (int)line_sensor_calibrated[0],(int)line_sensor_calibrated[1],(int)line_sensor_calibrated[2],
+    (int)line_sensor_calibrated[3],(int)line_sensor_calibrated[4],
+    servo_left_deg, servo_right_deg,
+    (wifi_mode==WIFI_STA_OK)?"sta":(wifi_mode==WIFI_AP_MODE)?"ap":(wifi_mode==WIFI_CONNECTING)?"connecting":"off",
+    (unsigned)ESP.getFreeHeap());
+  return String(buf).substring(0, n);
+}
+
+void registerApiRoutes() {
+  webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *req) {
+    req->send_P(200, "text/html", webUI);
+  });
+  webServer.on("/api/status", HTTP_GET, [](AsyncWebServerRequest *req) {
+    req->send(200, "application/json", buildStatusJson());
+  });
+  webServer.on("/api/command", HTTP_GET, [](AsyncWebServerRequest *req) {
+    String cmd;
+    if (req->hasParam("cmd")) cmd = req->getParam("cmd")->value();
+    cmd.toLowerCase();
+    if (cmd == "straight") {
+      robot_state = STATE_STRAIGHT; state_start_time = millis();
+    } else if (cmd == "line") {
+      LineFollower_setMode(LINE_MODE_ON); robot_state = STATE_LINE_FOLLOW;
+    } else if (cmd == "stop" || cmd == "idle") {
+      robot_state = STATE_IDLE; state_start_time = millis();
+      throttle = steering = 0;
+    } else if (cmd == "manual") {
+      robot_state = STATE_MANUAL;
+    } else if (cmd == "gripper_open")  { gripperOpen(); }
+    else if (cmd == "gripper_close") { gripperClose(); }
+    else if (cmd == "gripper_reset") { gripperReset(); }
+    else {
+      req->send(400, "application/json", "{\"error\":\"unknown cmd\"}");
+      return;
+    }
+    req->send(200, "application/json", buildStatusJson());
+  });
+  webServer.on("/api/joystick", HTTP_GET, [](AsyncWebServerRequest *req) {
+    if (req->hasParam("throttle")) api_manual_throttle_val = constrain(req->getParam("throttle")->value().toInt(), -200, 200);
+    if (req->hasParam("steering")) api_manual_steering_val = constrain(req->getParam("steering")->value().toInt(), -100, 100);
+    api_manual_throttle = true;
+    if (robot_state != STATE_MANUAL) robot_state = STATE_MANUAL;
+    req->send(200, "application/json", buildStatusJson());
+  });
+  // One-shot config: save WiFi creds then reboot so they take effect
+  webServer.on("/api/save-wifi", HTTP_GET, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("ssid") || !req->hasParam("pass")) {
+      req->send(400, "text/plain", "missing ssid or pass");
+      return;
+    }
+    wifiSaveCreds(req->getParam("ssid")->value(), req->getParam("pass")->value());
+    req->send(200, "text/plain", "saved, rebooting");
+    delay(500);
+    ESP.restart();
+  });
+  webServer.on("/api/reset-wifi", HTTP_GET, [](AsyncWebServerRequest *req) {
+    Preferences prefs;
+    prefs.begin(WIFI_NAMESPACE, false);
+    prefs.clear();
+    prefs.end();
+    req->send(200, "text/plain", "cleared, rebooting");
+    delay(500);
+    ESP.restart();
+  });
+  webServer.begin();
+}
+
+void initWifiAndServer() {
+  Serial.println("[WIFI] Initialising...");
+  WiFi.mode(WIFI_STA);
+
+  // 1) Use compile-time defaults from secrets.h if present
+  String ssid, pass;
+#if defined(WIFI_SSID) && defined(WIFI_PASSWORD)
+  ssid = WIFI_SSID;
+  pass = WIFI_PASSWORD;
+  Serial.print("[WIFI] Using compile-time SSID: ");
+  Serial.println(ssid);
+#else
+  // 2) Otherwise load from NVS (set via /api/save-wifi or first-boot AP)
+  if (wifiLoadCreds(ssid, pass)) {
+    Serial.print("[WIFI] Using stored SSID: ");
+    Serial.println(ssid);
+  } else {
+    Serial.println("[WIFI] No creds, will start AP");
+  }
+#endif
+
+  if (ssid.length() > 0) {
+    WiFi.begin(ssid.c_str(), pass.c_str());
+    wifi_mode = WIFI_CONNECTING;
+    unsigned long t0 = millis();
+    while (WiFi.status() != WL_CONNECTED && (unsigned long)(millis() - t0) < WIFI_CONNECT_TIMEOUT_MS) {
+      vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+      wifi_mode = WIFI_STA_OK;
+      Serial.print("[WIFI] Connected, IP: ");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.println("[WIFI] STA connect failed");
+    }
+  }
+
+#if WIFI_AP_FALLBACK
+  if (wifi_mode != WIFI_STA_OK) {
+    Serial.println("[WIFI] Starting AP for first-time config");
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASS);
+    wifi_mode = WIFI_AP_MODE;
+    Serial.print("[WIFI] AP SSID: ");
+    Serial.print(WIFI_AP_SSID);
+    Serial.print("  IP: ");
+    Serial.println(WiFi.softAPIP());
+  }
+#endif
+
+  registerApiRoutes();
+}
+#endif // ENABLE_WIFI
+
+// ============================================================================
 // SETUP & LOOP
 // ============================================================================
 
 void setup() {
   Serial.begin(115200);
   Serial.println("\n=== ESP32 Self-Balancing Robot v3.4.0 ===");
+
+  // Motor pins
   pinMode(PIN_ENABLE_MOTORS, OUTPUT);
-  digitalWrite(PIN_ENABLE_MOTORS, LOW);
+  digitalWrite(PIN_ENABLE_MOTORS, LOW);  // TMC2209 EN active-LOW
   pinMode(PIN_MOTOR1_DIR, OUTPUT);
   pinMode(PIN_MOTOR1_STEP, OUTPUT);
   pinMode(PIN_MOTOR2_DIR, OUTPUT);
   pinMode(PIN_MOTOR2_STEP, OUTPUT);
+  pinMode(PIN_WIFI_LED, OUTPUT);
+  digitalWrite(PIN_WIFI_LED, LOW);
+
+  // I2C bus — fail-fast on hung bus
+  Wire.begin(21, 22);
+  Wire.setClock(I2C_CLOCK_HZ);
+  Wire.setTimeout(WIRE_TIMEOUT_MS);  // ms; 0 disables timeout
+
+  // Init sensors (MPU is critical: bail out if it never responds)
   if (!initMPU6050()) {
     Serial.println("[FATAL] MPU6050 failed!");
-    while(1) vTaskDelay(pdMS_TO_TICKS(1000));
+    while (1) vTaskDelay(pdMS_TO_TICKS(1000));
   }
   initDistanceSensor();
   LineFollower_init();
   initTimers();
+
+  // Initialize timing globals (otherwise first dt = micros()/1e6 = huge)
+  timer_value = micros();
+  timer_old = timer_value;
+  last_steps1 = steps1;
+  last_steps2 = steps2;
+
   robot_state = STATE_IDLE;
   throttle = 0;
   steering = 0;
+  obstacle_clear_since_ms = 0;
   Serial.println("[OK] Ready!");
+
+  // Capture slope baseline NOW, while the chassis is still.
+  // (Doing it after the motor test would include vibration noise.)
+  MPU6050_read_3axis();
+  if (mpu_last_error == 0) {
+    z_accel_baseline = accel_t_gyro.value.z_accel;
+    Serial.print("[SLOPE] Z-axis baseline captured: ");
+    Serial.println(z_accel_baseline);
+  } else {
+    Serial.println("[SLOPE] WARN: MPU read failed at boot, baseline left at 0 (slope detection disabled)");
+  }
+
+  // Optional setup-time motor test (skipped by default for safety on a freestanding robot)
+#if SKIP_SETUP_MOTOR_TEST
+  Serial.println("[TEST] Skipping 1s motor spin (SKIP_SETUP_MOTOR_TEST=1)");
+#else
   Serial.println("[TEST] Motor spin for 1 second...");
   setMotorSpeedM1(100);
   setMotorSpeedM2(100);
@@ -920,12 +1237,20 @@ void setup() {
   setMotorSpeedM1(0);
   setMotorSpeedM2(0);
   Serial.println("[TEST] Motor test complete");
+#endif
+
+#if LINE_MODE_ENABLED
   LineFollower_setMode(LINE_MODE_ON);
   Serial.println("[LineFollower] Mode: ON");
-  MPU6050_read_3axis();
-  z_accel_baseline = accel_t_gyro.value.z_accel;
-  Serial.print("[SLOPE] Z-axis baseline captured: ");
-  Serial.println(z_accel_baseline);
+#else
+  LineFollower_setMode(LINE_MODE_OFF);
+  Serial.println("[LineFollower] Mode: OFF (LINE_MODE_ENABLED=0)");
+#endif
+
+#if ENABLE_WIFI
+  initWifiAndServer();
+#endif
+
   Serial.println("[BALANCE] Balancing for 5 seconds...");
   state_start_time = millis();
 }
@@ -936,18 +1261,23 @@ void loop() {
   if ((unsigned long)(now - last_control_us) >= 10000) {
     last_control_us = now;
     timer_value = now;
-    dt = (timer_value - timer_old) / 1000000.0;
+    // Guard against dt spikes on first cycle or after long stalls
+    float raw_dt = (timer_value - timer_old) / 1000000.0f;
+    dt = (raw_dt > 0.05f) ? 0.01f : ((raw_dt < 0.001f) ? 0.01f : raw_dt);
+    timer_old = timer_value;
     readSensors();
     controlLoop();
-    timer_old = timer_value;
     cascade_control_loop_counter++;
     if (cascade_control_loop_counter >= 10) {
       cascade_control_loop_counter = 0;
       loop_counter++;
     }
   }
+#if ENABLE_WIFI
+  wifiLedTick();
+#endif
 }
 
 // Author: Anton Petnitsky
 // GitHub: https://github.com/Mukller/Balance_robot
-// Last modified: 2026-08-23 12:00:00 +0300
+// Last modified: 2026-08-23 18:00:00 +0300
