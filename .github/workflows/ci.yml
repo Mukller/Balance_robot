@@ -1,0 +1,33 @@
+name: Compile check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        run: |
+          Invoke-WebRequest -Uri "https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip" -OutFile arduino-cli.zip -UseBasicParsing
+          Expand-Archive -Path arduino-cli.zip -DestinationPath .
+          echo "${{ github.workspace }}" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Install ESP32 core
+        run: |
+          arduino-cli.exe core update-index
+          arduino-cli.exe core install esp32:esp32
+
+      - name: Install libraries
+        run: |
+          git clone --depth 1 https://github.com/pololu/vl53l0x-arduino.git ${{ github.workspace }}\libraries\VL53L0X
+          git clone --depth 1 https://github.com/me-no-dev/AsyncTCP.git ${{ github.workspace }}\libraries\AsyncTCP
+          git clone --depth 1 https://github.com/me-no-dev/ESPAsyncWebServer.git ${{ github.workspace }}\libraries\ESPAsyncWebServer
+
+      - name: Compile main sketch
+        run: arduino-cli.exe compile --fqbn esp32:esp32:esp32 main\esp32_robot_monolith

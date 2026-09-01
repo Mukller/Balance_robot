@@ -1,0 +1,19 @@
+# Arduino / ESP32 build artifacts
+build/
+*.build/
+*.pio/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Compiled binaries
+*.elf
+*.bin
+*.hex
+
+# Local secrets (use secrets.h.example as template)
+secrets.h
