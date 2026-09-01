@@ -14,48 +14,78 @@
 
 
 Автономный робот-балансир на двух колёсах с линией, препятствиями и управлением через веб-интерфейс.
-
 ## Файлы проекта
 
-### Основные скетчи:
-- **esp32_robot_monolith/esp32_robot_monolith.ino** - основная программа робота
-- **web_interface.html** - веб-интерфейс с джойстиком
+### Основной скетч:
+- **main/esp32_robot_monolith/esp32_robot_monolith.ino** — вся логика робота (WiFi, веб-интерфейс, сенсоры, моторы, манипулятор) в одном файле
 
-### Тестовые скетчи:
-- **test_line_sensor.ino** - тест датчика линии (5 датчиков)
-- **test_distance_sensor.ino** - тест датчика расстояния (VL53L0X)
-- **test_motors.ino** - тест моторов (скорость и синхронизация)
-- **test_servo_gripper.ino** - тест сервомоторов захвата (две серво)
-- **test_gyro.ino** - тест гироскопа/акселерометра (MPU6050)
+### Шаблон конфигурации:
+- **secrets.h.example** — шаблон с SSID/паролем WiFi. Скопируйте в `secrets.h` (добавлен в `.gitignore`, в репозиторий не попадёт)
 
-### Код:
-- Вся логика робота собрана в монолите `esp32_robot_monolith/esp32_robot_monolith.ino` (WiFi, веб-интерфейс, сенсоры, моторы, манипулятор)
-- Веб-интерфейс: [`main/web_interface.html`](main/web_interface.html)
+### Тестовые скетчи (в `main/test_*/`):
+- **test_i2c.ino** — сканер I²C (SDA=21, SCL=22)
+- **test_gyro.ino** — тест гироскопа/акселерометра (MPU6050)
+- **test_line_sensor.ino** — тест датчика линии (5 датчиков, калиброванные значения + график)
+- **test_line_pins.ino** — диагностика сырых значений АЦП (поиск «висящих» пинов)
+- **test_line_calibrate.ino** — калибровка min/max для датчиков линии
+- **test_distance_sensor.ino** — тест датчика расстояния (VL53L0X)
+- **test_motors.ino** — тест моторов: DIR-реверс каждые 3 с
+- **test_motor_simple.ino** — самый простой тест моторов
+- **test_servo_gripper.ino** — тест сервомоторов захвата (две серво)
+- **test_emergency_stop.ino** — процедурная проверка экстренного стопа по VL53L0X
+- **test_wifi.ino** — минимальный тест WiFi-радио (диагностика перезагрузок)
+
+### Документация:
+- **main/LINE_FOLLOWING_GUIDE.md** — гайд по движению по линии
+- **main/LINE_FOLLOWER_README.md** — API датчика линии
 
 ---
 
 ## Быстрый старт
 
-### 1. Редактировать WiFi
+### 1. Установить библиотеки (в `~/Documents/Arduino/libraries/`)
+- `AsyncTCP` — `git clone https://github.com/me-no-dev/AsyncTCP.git`
+- `ESPAsyncWebServer` — `git clone https://github.com/me-no-dev/ESPAsyncWebServer.git`
+- `VL53L0X` — `git clone https://github.com/pololu/vl53l0x-arduino.git`
 
-В **esp32_robot_monolith.ino**:
-```cpp
-String sta_ssid = "YourWiFiSSID";
-String sta_password = "YourWiFiPassword";
+### 2. Настроить WiFi (по выбору)
+
+**Вариант A — файл `secrets.h` (рекомендуется для соревнований):**
+```bash
+cp secrets.h.example secrets.h
+# отредактируйте secrets.h и впишите свой SSID и пароль
 ```
 
-### 2. Загрузить в Arduino IDE
+**Вариант B — без файла (через AP + веб-интерфейс):**
+1. Загрузите скетч без `secrets.h`
+2. ESP32 поднимет AP **`BalanceRobot-Setup`** (пароль `balance123`)
+3. Подключитесь к AP, откройте `http://192.168.4.1/`
+4. Вызовите `GET /api/save-wifi?ssid=ВАШ_SSID&pass=ВАШ_ПАРОЛЬ` — креденшалы сохранятся в NVS и переживут перезагрузку
 
-Библиотеки нужны:
-- AsyncTCP
-- ESPAsyncWebServer
-- VL53L0X
+### 3. Загрузить скетч
+Откройте `main/esp32_robot_monolith/esp32_robot_monolith.ino` в Arduino IDE (ESP32 Arduino Core ≥ 3.x), выберите плату ESP32, загрузите.
 
-### 3. Открыть веб-интерфейс
+### 4. Открыть веб-интерфейс
+IP адрес выводится в Serial Monitor (115200). На соревнованиях: `http://<ip>/`
 
-```
-http://192.168.X.X
-```
+---
+
+## API робота (HTTP)
+
+| Endpoint                              | Действие                                |
+|---------------------------------------|-----------------------------------------|
+| `GET /`                               | Веб-интерфейс (джойстик + статус)       |
+| `GET /api/status`                     | JSON со всеми сенсорами и состоянием   |
+| `GET /api/command?cmd=straight`       | Перейти в STRAIGHT (2 с прямо)          |
+| `GET /api/command?cmd=line`           | Перейти в LINE_FOLLOW                   |
+| `GET /api/command?cmd=stop`           | Перейти в IDLE (стоп)                   |
+| `GET /api/command?cmd=manual`         | Перейти в MANUAL (ждёт джойстика)       |
+| `GET /api/joystick?throttle=&steering=`| Управление throttle/steering (±200/±100) |
+| `GET /api/command?cmd=gripper_open`   | Открыть захват                          |
+| `GET /api/command?cmd=gripper_close`  | Закрыть захват                          |
+| `GET /api/command?cmd=gripper_reset`  | Захват в 0° (нейтрально)                |
+| `GET /api/save-wifi?ssid=&pass=`      | Сохранить WiFi в NVS и перезагрузиться  |
+| `GET /api/reset-wifi`                 | Очистить WiFi-креденшалы и перезагрузиться |
 
 ---
 
@@ -284,7 +314,7 @@ I2C (для датчиков):
     12   │  ⬤ ENABLE MOTORS   ⬤ │  27 (MOTOR1_DIR)
     13   │  ⬤ SERVO           ⬤ │  25 (MOTOR2_DIR)
     14   │  ⬤ MOTOR1_STEP     ⬤ │  32 (LINE_S5)
-    26   │  ⬀                 ⬀ │  33 (BUZZER)
+    26   │  ⬀                 ⬀ │  33 (SERVO RIGHT)
     35   │  ⬀ LINE_S2         ⬀ │  34 (LINE_S1)
     39   │  ⬀ LINE_S4         ⬀ │  36 (LINE_S3)
     GND  │  ⬀                 ⬀ │  GND
@@ -467,8 +497,7 @@ GPIO 26 → Драйвер STEP2 → Motor2 STEP
 GPIO 12 → Драйвер ENABLE
 
 Аудио/Визуально:
-GPIO 33 → Buzzer
-GPIO 2 → WiFi LED
+GPIO 2 → WiFi LED (индикатор WiFi-состояния)
 ```
 
 ---

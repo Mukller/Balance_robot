@@ -2,43 +2,37 @@
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| Latest  |        |
+| Version | Supported          |
+|---------|--------------------|
+| 3.4.x   | :white_check_mark: |
+| 3.3.x   | :x:                |
+| < 3.0   | :x:                |
 
 ## Reporting a Vulnerability
 
-**Do NOT create a public GitHub Issue for security vulnerabilities.**
+**Do NOT open a public GitHub issue for security vulnerabilities.**
 
-### How to Report
+Send a private report by email (see the GitHub profile `@Mukller` for an address) or via GitHub's private vulnerability reporting on the Security tab of this repository.
 
-1. Go to the [Issues](https://github.com/Mukller/Balance_robot/issues) page
-2. Create an issue with the `security` label
-3. Or contact: [@Mukller](https://github.com/Mukller)
+Please include:
 
-### What to Include
+- Description of the vulnerability and its impact
+- Reproduction steps
+- Affected version(s)
+- Suggested fix (if you have one)
 
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Suggested fix (if available)
+## Response Time
 
-### Response Time
+- Initial triage: within 7 days
+- Fix release: within 30 days of confirmation
 
-- Initial response: within **7 days**
-- Fix release: within **30 days** of confirmation
+## Security Notes for this Project
 
-## Security Best Practices
-
-- Keep dependencies up to date
-- Never commit secrets or credentials to version control
-- Use environment variables for sensitive configuration
-- Follow the principle of least privilege
+- `secrets.h` (WiFi credentials) is gitignored. Use `secrets.h.example` as a template.
+- WiFi credentials can also be configured at runtime via the captive portal (`/api/save-wifi`) and are stored in NVS (`Preferences`), not in source.
+- The robot is a competition device on your own network — there is no internet exposure by default.
+- Do not commit `secrets.h`, captured NVS dumps, or anything that contains WiFi passwords.
 
 ## Acknowledgements
 
-We appreciate responsible disclosure. All valid reports will be acknowledged.
-
----
-
-**Thank you for helping keep this project secure!**
+Thanks for responsible disclosure. Valid reports are credited in the CHANGELOG unless anonymity is requested.

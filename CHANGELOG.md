@@ -5,133 +5,47 @@ All notable changes to this project will be documented in this file.
 ## [3.4.0] - 2026-08-23
 
 ### Fixed
-- Slope detection: Z-axis baseline captured at startup (before: `on_slope` was always true, throttle permanently halved) (#1)
+- Slope detection: Z-axis baseline captured at startup before motor test (was always "on slope") (#1)
 - PID state corruption from duplicate diagnostic controller calls every 10 loops (`prev_error` reset, double integral accumulation) (#2)
 - VL53L0X moved to continuous mode with register-level data-ready polling (0x13) — control loop no longer blocked ~33 ms per cycle (#3)
-- Speed feedback restored: `actual_robot_speed` estimated from wheel commands with low-pass filter (was stuck at 0 → open-loop speed PI) (#4)
+- Speed feedback now uses true step-based odometry instead of commanded-speed proxy (which fought balance controller) (#4)
+- `AUTO_START_ON_BOOT` flag to disable 5s auto-start for competition safety (#5)
+- Setup-time motor test gated behind `SKIP_SETUP_MOTOR_TEST=1` (was rolling the robot off the table)
+- Slope damping no longer halves the balance PD output (only throttle/steering)
+- MPU6050 I2C read returns its error code; controlLoop emergency-stops on persistent failures + `Wire.setTimeout(50)` for fail-fast on hung bus
+- `dt` clamped to a safe range on first cycle (no more huge integrator spike on boot)
+- Line-following mode gated behind `LINE_MODE_ENABLED` flag
 
 ### Added
-- `AUTO_START_ON_BOOT` config flag: set 0 to keep the robot balancing in IDLE instead of auto-starting after 5 s (competition safety) (#5)
+- WiFi STA + AsyncWebServer with AP-mode fallback (creds via `secrets.h` or runtime `/api/save-wifi` → NVS)
+- `STATE_MANUAL` for joystick override (set via `/api/joystick`)
+- `STATE_STOPPED` auto-resume after obstacle clears for `STOPPED_RESUME_HOLD_MS` (1 s)
+- `STATE_MANUAL` exposed via `/api/command?cmd=manual`
+- Servo/gripper API: `gripper_open` / `gripper_close` / `gripper_reset`
+- WiFi LED status (solid = connected, fast blink = connecting, slow blink = AP, off = offline)
+- `secrets.h.example` template (gitignored `secrets.h` is the live one)
+- `LINE_FOLLOWING_GUIDE.md` / `LINE_FOLLOWER_README.md` cross-link to `test_line_calibrate.ino`
+- `test_emergency_stop.ino` procedural test for obstacle-stop behavior
+- Compile check CI (GitHub Actions, arduino-cli + esp32 3.1.1)
+
+### Changed
+- `webUI` HTML moved to PROGMEM (frees ~5 KB of RAM)
+- I2C bus clocked at 400 kHz (was 100 kHz)
+- `SWAP` macro uses function-local storage instead of file-scope `swap_var`
+- Servo test constant corrected: 3.277 → 3.2768
+- README: removed references to non-existent files (`esp32_robot_main.ino`, `web_interface.h`, `*.h/.cpp` modules)
+- README: GPIO33 marked as SERVO RIGHT (was inconsistently labelled BUZZER in the pinout diagram)
+- Removed dead code: `counter1/2`, `position_error_sum_*`, `positionPDControl`, `Kp_position/Kd_position`, `target_steps*`, `motor1_control/2_control`, `positionControlMode`, `MAX_*_PRO`, `SERVO_AUX_*` / `SERVO*_NEUTRO` / `SERVO*_PULSEWIDTH`, `KP_RAISEUP` etc., `LINE_THRESHOLD`, `GRAD2RAD`
+- `web_interface.html` (standalone, drifted from in-tree copy) removed
+- `TAGS.md`, `RELEASE_INFO.md` removed (stale/duplicative)
+- `CODE_REVIEW_REPORT.md` rewritten as a real review
+- `SECURITY.md` contradiction fixed (private disclosure path)
+
+## [3.3.1] - 2026-07-10
+
+### Changed
+- Refactor: monolithic single-file `esp32_robot_monolith.ino`
+- Author/source header added to all source files
+- README bilingual switcher collapsed into separate README.md / README_EN.md
 
 ## [3.0] - 2026-06-07
-
-### Added
-- Web interface with joystick control (HTML/CSS/JS)
-- Real-time sensor data display (line sensors, distance)
-- Three test sketches for debugging:
-  - test_line_sensor.ino - Line sensor array testing
-  - test_distance_sensor.ino - VL53L0X distance sensor
-  - test_motors.ino - Stepper motor control testing
-- Detailed wiring diagram with pinout
-- Complete GPIO documentation
-- I2C pull-up resistor instructions
-- Breadboard layout guide
-- API endpoints for robot control
-  - /api/joystick - Joystick control
-  - /api/command - State commands
-  - /api/status - Robot status
-
-### Features
-- 4 robot states: IDLE, STRAIGHT, LINE_FOLLOW, STOPPED
-- Automatic 2-second straight, then line following
-- Slope detection using Z-axis accelerometer
-- Speed reduction (2x) when climbing hills
-- Emergency stop on obstacle detection (< 300mm)
-- WiFi web control panel
-- Real-time debugging output to Serial Monitor
-
-### Fixed
-- String concatenation optimization (snprintf instead of String +)
-- Type safety for abs() function (int32_t)
-- control_output constraints
-- millis() overflow safe comparison
-- Non-blocking delays (vTaskDelay instead of delay)
-- Error handling in sensor initialization
-
-## [2.0] - 2026-06-07
-
-### Added
-- Line following integration with 5-sensor array (Ldabrye)
-- Slope detection by vertical acceleration (Z-axis)
-- Distance sensor support (VL53L0X)
-- WiFi API for robot control
-- Comprehensive code review document
-
-### Features
-- Complementary filter for angle calculation
-- Weighted average position detection for line
-- Automatic obstacle avoidance
-- State machine for robot control
-
-### Fixed
-- Race conditions on volatile variables
-- Memory optimization for JSON responses
-- Proper interrupt handler synchronization
-
-## [1.0] - 2026-06-01
-
-### Initial Release
-- Self-balancing robot core functionality
-- PD controller for balance (MPU6050)
-- Stepper motor control with acceleration limiting
-- Basic WiFi connectivity
-- GPIO pin configuration
-- Interrupt-driven motor control at 100Hz
-
-### Components
-- ESP32 microcontroller
-- MPU6050 gyroscope + accelerometer
-- 2x NEMA17 stepper motors
-- Stepper motor drivers
-
----
-
-## Version Compatibility
-
-| Version | Date       | Status      | Notes                              |
-|---------|------------|-------------|-----------------------------------|
-| 3.0     | 2026-06-07 | Stable      | Web interface, tests, full docs   |
-| 2.0     | 2026-06-07 | Archived    | Line following basics             |
-| 1.0     | 2026-06-01 | Archived    | Initial release                   |
-
----
-
-## Roadmap
-
-### Planned for v4.0
-- [ ] Machine learning obstacle avoidance
-- [ ] SLAM navigation
-- [ ] Multi-robot coordination
-- [ ] Advanced PID tuning interface
-- [ ] Telemetry recording
-- [ ] Mobile app control
-
-### Under Consideration
-- [ ] Camera integration
-- [ ] Voice control
-- [ ] Auto-tuning algorithm
-- [ ] Battery monitoring
-- [ ] Over-the-air updates
-
----
-
-## Migration Guide
-
-### From v2.0 to v3.0
-1. Update web_interface.h (new file)
-2. Replace esp32_robot_main.ino with new version
-3. Add test sketches to verify hardware
-4. Update WiFi credentials
-5. Test sensors individually before running main sketch
-
-### From v1.0 to v2.0
-1. Add LineFollower library files
-2. Update GPIO configuration in defines.h
-3. Add new sensor initialization code
-4. Update main control loop for slope detection
-
----
-
-**Current Version:** 3.0  
-**Last Updated:** 2026-06-07  
-**Maintainer:** Anton (github.com/Mukller)

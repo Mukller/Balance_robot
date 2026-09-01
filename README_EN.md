@@ -14,48 +14,78 @@
 
 
 An autonomous two-wheeled self-balancing robot with line following, obstacle detection, and control via a web interface.
-
 ## Project files
 
-### Main sketches:
-- **esp32_robot_monolith/esp32_robot_monolith.ino** - the robot's main program
-- **web_interface.html** - web interface with a joystick
+### Main sketch:
+- **main/esp32_robot_monolith/esp32_robot_monolith.ino** — all robot logic (WiFi, web UI, sensors, motors, gripper) in a single file
 
-### Test sketches:
-- **test_line_sensor.ino** - line sensor test (5 sensors)
-- **test_distance_sensor.ino** - distance sensor test (VL53L0X)
-- **test_motors.ino** - motor test (speed and synchronization)
-- **test_servo_gripper.ino** - gripper servo test (two servos)
-- **test_gyro.ino** - gyroscope/accelerometer test (MPU6050)
+### Config template:
+- **secrets.h.example** — WiFi SSID/password template. Copy to `secrets.h` (gitignored, never committed)
 
-### Code:
-- All robot logic lives in the monolith `esp32_robot_monolith/esp32_robot_monolith.ino` (WiFi, web UI, sensors, motors, gripper)
-- Web interface: [`main/web_interface.html`](main/web_interface.html)
+### Test sketches (in `main/test_*/`):
+- **test_i2c.ino** — I²C scanner (SDA=21, SCL=22)
+- **test_gyro.ino** — gyroscope/accelerometer test (MPU6050)
+- **test_line_sensor.ino** — line sensor test (5 sensors, calibrated values + graph)
+- **test_line_pins.ino** — raw ADC diagnostic (find stuck pins)
+- **test_line_calibrate.ino** — min/max calibration for the line sensors
+- **test_distance_sensor.ino** — distance sensor test (VL53L0X)
+- **test_motors.ino** — motor test: DIR reversal every 3 s
+- **test_motor_simple.ino** — simplest possible motor test
+- **test_servo_gripper.ino** — gripper servo test (two servos)
+- **test_emergency_stop.ino** — procedural check of VL53L0X-triggered emergency stop
+- **test_wifi.ino** — minimal WiFi-radio test (reboot diagnostics)
+
+### Documentation:
+- **main/LINE_FOLLOWING_GUIDE.md** — line-following guide
+- **main/LINE_FOLLOWER_README.md** — line-sensor API
 
 ---
 
 ## Quick start
 
-### 1. Edit WiFi
+### 1. Install libraries (into `~/Documents/Arduino/libraries/`)
+- `AsyncTCP` — `git clone https://github.com/me-no-dev/AsyncTCP.git`
+- `ESPAsyncWebServer` — `git clone https://github.com/me-no-dev/ESPAsyncWebServer.git`
+- `VL53L0X` — `git clone https://github.com/pololu/vl53l0x-arduino.git`
 
-In **esp32_robot_monolith.ino**:
-```cpp
-String sta_ssid = "YourWiFiSSID";
-String sta_password = "YourWiFiPassword";
+### 2. Configure WiFi (pick one)
+
+**Option A — `secrets.h` file (recommended for competitions):**
+```bash
+cp secrets.h.example secrets.h
+# edit secrets.h and put your SSID + password
 ```
 
-### 2. Upload from the Arduino IDE
+**Option B — without a file (via AP + web UI):**
+1. Flash the sketch with no `secrets.h`
+2. ESP32 brings up the AP **`BalanceRobot-Setup`** (password `balance123`)
+3. Connect to the AP, open `http://192.168.4.1/`
+4. Call `GET /api/save-wifi?ssid=YOUR_SSID&pass=YOUR_PASSWORD` — creds are stored in NVS and survive reboots
 
-Required libraries:
-- AsyncTCP
-- ESPAsyncWebServer
-- VL53L0X
+### 3. Upload the sketch
+Open `main/esp32_robot_monolith/esp32_robot_monolith.ino` in the Arduino IDE (ESP32 Arduino Core ≥ 3.x), pick the ESP32 board, upload.
 
-### 3. Open the web interface
+### 4. Open the web interface
+The IP is printed to the Serial Monitor (115200). At a competition: `http://<ip>/`
 
-```
-http://192.168.X.X
-```
+---
+
+## Robot API (HTTP)
+
+| Endpoint                              | Action                                   |
+|---------------------------------------|------------------------------------------|
+| `GET /`                               | Web UI (joystick + status)               |
+| `GET /api/status`                     | JSON with all sensors and state          |
+| `GET /api/command?cmd=straight`       | Go to STRAIGHT (2 s forward)             |
+| `GET /api/command?cmd=line`           | Go to LINE_FOLLOW                        |
+| `GET /api/command?cmd=stop`           | Go to IDLE (stop)                        |
+| `GET /api/command?cmd=manual`         | Go to MANUAL (joystick-driven)           |
+| `GET /api/joystick?throttle=&steering=`| Throttle/steering control (±200/±100)     |
+| `GET /api/command?cmd=gripper_open`   | Open the gripper                          |
+| `GET /api/command?cmd=gripper_close`  | Close the gripper                         |
+| `GET /api/command?cmd=gripper_reset`  | Reset gripper to 0° (neutral)              |
+| `GET /api/save-wifi?ssid=&pass=`      | Save WiFi in NVS and reboot               |
+| `GET /api/reset-wifi`                 | Clear WiFi creds and reboot                |
 
 ---
 
@@ -284,7 +314,7 @@ Hardware bug observed at competitions: **periodically one of the stepper drivers
     12   │  ⬤ ENABLE MOTORS   ⬤ │  27 (MOTOR1_DIR)
     13   │  ⬤ SERVO           ⬤ │  25 (MOTOR2_DIR)
     14   │  ⬤ MOTOR1_STEP     ⬤ │  32 (LINE_S5)
-    26   │  ⬀                 ⬀ │  33 (BUZZER)
+    26   │  ⬀                 ⬀ │  33 (SERVO RIGHT)
     35   │  ⬀ LINE_S2         ⬀ │  34 (LINE_S1)
     39   │  ⬀ LINE_S4         ⬀ │  36 (LINE_S3)
     GND  │  ⬀                 ⬀ │  GND
@@ -467,8 +497,7 @@ GPIO 26 → Driver STEP2 → Motor2 STEP
 GPIO 12 → Driver ENABLE
 
 Audio/Visual:
-GPIO 33 → Buzzer
-GPIO 2 → WiFi LED
+GPIO 2 → WiFi LED (WiFi status indicator)
 ```
 
 ---

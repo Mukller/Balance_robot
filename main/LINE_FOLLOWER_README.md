@@ -4,10 +4,9 @@
 
 Полная система отслеживания чёрной линии на основе датчика **Ldabrye Grayscale Line Follower (5-сенсорный)**
 
-### Новые файлы:
-1. **LineFollower.h** - заголовочный файл с декларациями
-2. **LineFollower.cpp** - полная реализация алгоритма
-3. Этот файл (документация)
+### Где код живёт сейчас
+
+Вся логика датчика линии встроена в `main/esp32_robot_monolith/esp32_robot_monolith.ino` (функции с префиксом `LineFollower_`). Модульные `LineFollower.h/.cpp` были удалены при рефакторинге в монолит (v3.3.1, см. CHANGELOG).
 
 ---
 
@@ -27,27 +26,20 @@ GND                    →   GND
 VCC (5V)               →   5V (через стабилизатор!)
 ```
 
-### Шаг 2: Добавить в основной скетч
+### Шаг 2: Калибровка
 
-**В начало файла (с includes):**
-```cpp
-#include "LineFollower.h"
-```
+В монолите min/max пока зашиты (500 / 3500) как разумные дефолты. Для точной работы на конкретной поверхности:
 
-**В setup():**
-```cpp
-void setup() {
-  // ... существующий код ...
+1. Загрузите `main/test_line_calibrate/test_line_calibrate.ino` — он покажет сырые значения и min/max в Serial Monitor
+2. Водите датчиком по белому/чёрному 10–15 секунд, чтобы собрать min/max
+3. Подставьте полученные значения в `LineFollower.h/.cpp` (нет, в `esp32_robot_monolith.ino`) в строках:
+   ```cpp
+   uint16_t line_min_values[5] = {500, 500, 500, 500, 500};
+   uint16_t line_max_values[5] = {3500, 3500, 3500, 3500, 3500};
+   ```
+4. Можно также прогнать `test_line_sensor.ino` (отображает калиброванные значения) и `test_line_pins.ino` (ищет «висящие» каналы).
 
-  LineFollower_init();  // Инициализировать датчик
-
-  // Раскомментировать ПЕРВЫЙ РАЗ для калибровки:
-  // LineFollower_calibrate();
-}
-```
-
-**В 100Hz контроль loop:**
-```cpp
+> TODO: вынести `line_min_values` / `line_max_values` в `secrets.h` (или в NVS) для удобной runtime-калибровки.
 // Получить команду поворота от датчика линии
 if (line_mode != LINE_MODE_OFF) {
   int16_t line_steering = LineFollower_getSteering();
