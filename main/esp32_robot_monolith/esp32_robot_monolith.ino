@@ -210,14 +210,17 @@ VL53L0X distanceSensor;
 bool vl53_ready = false;
 uint16_t distance_mm = 0;
 
+// Manual control values (used when ENABLE_WIFI is 0: defined unconditionally so
+// the STATE_MANUAL branch in controlLoop compiles even without WiFi).
+int16_t api_manual_throttle_val = 0;
+int16_t api_manual_steering_val  = 0;
+
 #if ENABLE_WIFI
 // WiFi state
 enum WiFiMode { WIFI_OFFLINE, WIFI_CONNECTING, WIFI_AP_MODE, WIFI_STA_OK };
 WiFiMode wifi_mode = WIFI_OFFLINE;
 AsyncWebServer webServer(80);
 bool api_manual_throttle = false;  // joystick override flag
-int16_t api_manual_throttle_val = 0;
-int16_t api_manual_steering_val = 0;
 unsigned long wifi_led_toggle_ms = 0;
 bool wifi_led_state = false;
 #endif
