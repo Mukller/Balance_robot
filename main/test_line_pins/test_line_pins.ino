@@ -40,6 +40,7 @@ void setup() {
   analogSetWidth(12);              // 0..4095
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);  // полный диапазон ~0..3.3V
+  // (набор инициализации АЦП единый с test_line_sensor.ino и основным скетчем)
 
   resetMinMax();
   Serial.println("Move sensor over black/white. RANGE~0 means the pin is STUCK.");

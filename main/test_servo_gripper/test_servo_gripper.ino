@@ -9,11 +9,12 @@
 #define PWM_RESOLUTION 16  // 16-bit resolution
 
 // Функция для конвертирования углов в PWM значение
+// Требуется ESP32 Arduino Core >= 3.x (использует ledcAttach/ledcWrite по пину)
 int angleToPWM(int angle) {
   // 0° = 1000us, 180° = 2000us
-  // На 50Hz и 16-bit: 1us = 3.277 ticks
+  // На 50Hz и 16-bit: 1us = 32768/10000 = 3.2768 ticks (точное значение)
   int pulse = 1000 + (angle * 1000) / 180;
-  return (int)(pulse * 3.277);
+  return (int)(pulse * 3.2768);
 }
 
 // В ESP32 v3.x работаем напрямую по пину (без каналов)

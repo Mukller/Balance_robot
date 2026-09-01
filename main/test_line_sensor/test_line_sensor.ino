@@ -26,9 +26,10 @@ void setup() {
   Serial.println("\n=== LINE SENSOR TEST ===");
   Serial.println("Testing 5 line sensors (Ldabrye)");
 
-  // Настроить АДЦ
+  // Настроить АДЦ (тот же набор, что и в основном скетче)
   analogSetWidth(12);
   analogSetAttenuation(ADC_11db);
+  analogReadResolution(12);
 
   Serial.println("[OK] Ready! Place sensor over white/black surface...");
   delay(1000);

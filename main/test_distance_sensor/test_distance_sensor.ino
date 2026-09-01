@@ -1,5 +1,10 @@
 // TEST: Датчик расстояния VL53L0X
 // Измеряет расстояние до препятствия
+//
+// Замечание: использует blocking read (readRangeSingleMillimeters, ~33 мс на замер).
+// В основном скетче (esp32_robot_monolith.ino) датчик переведён в continuous mode
+// и читается через polling RESULT_INTERRUPT_STATUS, чтобы не блокировать
+// 100 Гц контур балансировки. Этот тест - простой "покажи значение".
 
 #include <Wire.h>
 #include <VL53L0X.h>

@@ -12,6 +12,7 @@ void setup() {
   Serial.println("Scanning for devices...\n");
 
   Wire.begin(21, 22);  // SDA=21, SCL=22
+  Wire.setClock(400000);  // 400kHz - same as main sketch
 
   byte count = 0;
   for (byte i = 1; i < 127; i++) {
