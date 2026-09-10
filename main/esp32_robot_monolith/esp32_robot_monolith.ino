@@ -235,7 +235,7 @@ const char webUI[] PROGMEM = R"rawliteral(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Robot Control</title>
+<title>ESP32 Balance Robot</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -254,158 +254,327 @@ header {
   position: sticky;
   top: 0;
   z-index: 10;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 header h1 { font-size: 16px; font-weight: 600; color: #e6edf3; }
-main { padding: 24px; max-width: 960px; margin: 0 auto; }
-h2 { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin: 0 0 12px; }
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+header .badges { display: flex; gap: 6px; align-items: center; }
+main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+h2 { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin: 0 0 10px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+@media (max-width: 960px) { .grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
 .card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 18px; }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; background: #21262d; color: #8b949e; }
 .tag.green  { background: rgba(63,185,80,.15);  color: #3fb950; }
 .tag.red    { background: rgba(248,81,73,.15);  color: #f85149; }
 .tag.blue   { background: rgba(88,166,255,.15); color: #58a6ff; }
-.joystick-wrap { display: flex; justify-content: center; margin-bottom: 18px; }
-.joystick-container { width: 200px; height: 200px; background: #0d1117; border: 1px solid #21262d; border-radius: 50%; position: relative; touch-action: none; }
+.tag.yellow { background: rgba(210,153,34,.15); color: #d29922; }
+.tag.purple { background: rgba(168,85,247,.15); color: #a371f7; }
+.joystick-wrap { display: flex; justify-content: center; margin-bottom: 14px; }
+.joystick-container { width: 180px; height: 180px; background: #0d1117; border: 1px solid #21262d; border-radius: 50%; position: relative; touch-action: none; }
 .joystick-ring { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 1px solid #21262d; border-radius: 50%; pointer-events: none; }
-.joystick-dot { width: 44px; height: 44px; background: #58a6ff; border-radius: 50%; position: absolute; top: 78px; left: 78px; cursor: grab; box-shadow: 0 0 12px rgba(88,166,255,.4); }
+.joystick-dot { width: 44px; height: 44px; background: #58a6ff; border-radius: 50%; position: absolute; top: 68px; left: 68px; cursor: grab; box-shadow: 0 0 12px rgba(88,166,255,.4); transition: box-shadow .1s; }
 .joystick-dot:active { cursor: grabbing; box-shadow: 0 0 20px rgba(88,166,255,.6); }
-.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
-button { background: #238636; color: #fff; border: none; padding: 7px 13px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 500; transition: background .15s; }
+.btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.btn-row.three { grid-template-columns: 1fr 1fr 1fr; }
+button { background: #238636; color: #fff; border: none; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit; font-weight: 500; transition: background .15s; }
 button:hover { background: #2ea043; }
+button:disabled { background: #21262d; color: #6e7681; cursor: not-allowed; }
 button.secondary { background: #21262d; color: #c9d1d9; }
-button.secondary:hover { background: #30363d; }
+button.secondary:hover:not(:disabled) { background: #30363d; }
 button.danger { background: #da3633; }
 button.danger:hover { background: #f85149; }
-.status-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-top: 1px solid #21262d; margin-top: 4px; }
+button.gripper { background: #6e40c9; }
+button.gripper:hover { background: #8957e5; }
+.status-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid #21262d; margin-top: 4px; }
 .status-label { font-size: 12px; color: #8b949e; }
-.kv { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
+.kv { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #21262d; font-size: 13px; gap: 8px; }
 .kv:last-child { border: none; }
 .kv-k { color: #8b949e; }
-.kv-v { font-family: monospace; color: #c9d1d9; }
+.kv-v { font-family: monospace; color: #c9d1d9; text-align: right; }
 .bar { height: 4px; background: #21262d; border-radius: 2px; overflow: hidden; margin: 4px 0 10px; }
 .bar-fill { height: 100%; background: #58a6ff; transition: width .2s; border-radius: 2px; }
-.line-bars { display: flex; gap: 6px; justify-content: center; margin: 8px 0 10px; }
-.s-bar { width: 24px; height: 72px; background: #0d1117; border: 1px solid #21262d; border-radius: 3px; position: relative; overflow: hidden; }
-.s-fill { width: 100%; position: absolute; bottom: 0; background: #58a6ff; transition: height .15s; border-radius: 2px; }
-.section-gap { margin-top: 18px; }
+.line-bars { display: flex; gap: 5px; justify-content: center; margin: 8px 0 10px; }
+.s-bar { width: 26px; height: 72px; background: #0d1117; border: 1px solid #21262d; border-radius: 3px; position: relative; overflow: hidden; }
+.s-fill { width: 100%; position: absolute; bottom: 0; background: #58a6ff; transition: height .15s, background .2s; border-radius: 2px; }
+.s-bar.calibrating .s-fill { background: #d29922; }
+.section-gap { margin-top: 16px; }
+input[type="number"], input[type="text"], input[type="password"] {
+  background: #0d1117; color: #e6edf3; border: 1px solid #21262d; border-radius: 4px;
+  padding: 4px 6px; font-size: 12px; font-family: monospace; width: 100%;
+}
+input[type="number"] { width: 70px; }
+label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 2px; }
+.calib-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 10px; }
+.calib-cell { display: flex; flex-direction: column; align-items: center; }
+.calib-cell .v { color: #8b949e; font-size: 10px; margin-bottom: 2px; }
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #161b22; border: 1px solid #30363d; padding: 10px 16px; border-radius: 6px;
+  font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.4); display: none; z-index: 100;
+  max-width: 80%;
+}
+.toast.show { display: block; animation: fade 3s forwards; }
+.toast.error { border-color: #f85149; color: #ffa198; }
+.toast.ok { border-color: #3fb950; color: #56d364; }
+@keyframes fade { 0% { opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { opacity: 0; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>🤖 Robot Control</h1>
-  <div style="display:flex;gap:6px;align-items:center">
-    <span class="tag blue">ESP32</span>
+  <h1>ESP32 Balance Robot</h1>
+  <div class="badges">
+    <span class="tag blue" id="wifiTag">WiFi: ...</span>
     <span class="tag" id="statusTag">IDLE</span>
   </div>
 </header>
 <main>
-  <div class="grid">
-    <div class="card">
-      <h2>Управление</h2>
-      <div class="joystick-wrap">
-        <div class="joystick-container">
-          <div class="joystick-ring"></div>
-          <div class="joystick-dot" id="joystick"></div>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button onclick="startStraight()">▶ Прямо</button>
-        <button class="secondary" onclick="startLine()">〰 Линия</button>
-        <button class="danger" onclick="stopRobot()">⏹ Стоп</button>
-        <button class="secondary" onclick="getStatus()">↻ Статус</button>
-      </div>
-      <div class="status-row">
-        <span class="status-label">Режим</span>
-        <span class="tag" id="statusDisplay">IDLE</span>
+<div class="grid">
+  <!-- Card 1: Control -->
+  <div class="card">
+    <h2>Управление</h2>
+    <div class="joystick-wrap">
+      <div class="joystick-container" id="joystickBox">
+        <div class="joystick-ring"></div>
+        <div class="joystick-dot" id="joystick"></div>
       </div>
     </div>
-    <div class="card">
-      <h2>Датчики</h2>
-      <div class="kv"><span class="kv-k">Дистанция (мм)</span><span class="kv-v" id="distance">--</span></div>
-      <div class="kv"><span class="kv-k">На линии</span><span class="kv-v" id="onLine">НЕТ</span></div>
-      <div class="kv"><span class="kv-k">Ошибка линии</span><span class="kv-v" id="lineError">0</span></div>
-      <div class="section-gap">
-        <h2>Датчик линии</h2>
-        <div class="line-bars" id="lineSensors">
-          <div class="s-bar"><div class="s-fill" id="sensor0" style="height:0%"></div></div>
-          <div class="s-bar"><div class="s-fill" id="sensor1" style="height:0%"></div></div>
-          <div class="s-bar"><div class="s-fill" id="sensor2" style="height:0%"></div></div>
-          <div class="s-bar"><div class="s-fill" id="sensor3" style="height:0%"></div></div>
-          <div class="s-bar"><div class="s-fill" id="sensor4" style="height:0%"></div></div>
-        </div>
-      </div>
-      <div class="section-gap">
-        <h2>Параметры</h2>
-        <div class="kv"><span class="kv-k">Угол</span><span class="kv-v" id="angle">0.0°</span></div>
-        <div class="kv"><span class="kv-k">На уклоне</span><span class="kv-v" id="onSlope">НЕТ</span></div>
-        <div class="kv"><span class="kv-k">Throttle</span><span class="kv-v" id="throttle">0</span></div>
-      </div>
+    <div class="btn-row three">
+      <button onclick="cmd('straight')">Прямо</button>
+      <button class="secondary" onclick="cmd('line')">Линия</button>
+      <button class="danger" onclick="cmd('stop')">Стоп</button>
+    </div>
+    <div class="btn-row">
+      <button class="secondary" onclick="cmd('manual')">Ручной</button>
+      <button class="secondary" onclick="refresh()">Обновить</button>
+    </div>
+    <h2 class="section-gap">Захват</h2>
+    <div class="btn-row three">
+      <button class="gripper" onclick="cmd('gripper_open')">Открыть</button>
+      <button class="gripper" onclick="cmd('gripper_close')">Закрыть</button>
+      <button class="gripper" onclick="cmd('gripper_reset')">Сброс</button>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Состояние</span>
+      <span class="tag" id="statusDisplay">IDLE</span>
     </div>
   </div>
+
+  <!-- Card 2: Sensors -->
+  <div class="card">
+    <h2>Датчики</h2>
+    <div class="kv"><span class="kv-k">Дистанция (мм)</span><span class="kv-v" id="distance">--</span></div>
+    <div class="kv"><span class="kv-k">Ошибка линии</span><span class="kv-v" id="lineError">0</span></div>
+    <div class="kv"><span class="kv-k">Угол</span><span class="kv-v" id="angle">0.0°</span></div>
+    <div class="kv"><span class="kv-k">На уклоне</span><span class="kv-v" id="onSlope">НЕТ</span></div>
+    <div class="kv"><span class="kv-k">Throttle</span><span class="kv-v" id="throttle">0</span></div>
+    <div class="kv"><span class="kv-k">M1 / M2</span><span class="kv-v" id="motors">0 / 0</span></div>
+    <h2 class="section-gap">Датчик линии (5x ADC)</h2>
+    <div class="line-bars" id="lineSensors">
+      <div class="s-bar"><div class="s-fill" id="sensor0" style="height:0%"></div></div>
+      <div class="s-bar"><div class="s-fill" id="sensor1" style="height:0%"></div></div>
+      <div class="s-bar"><div class="s-fill" id="sensor2" style="height:0%"></div></div>
+      <div class="s-bar"><div class="s-fill" id="sensor3" style="height:0%"></div></div>
+      <div class="s-bar"><div class="s-fill" id="sensor4" style="height:0%"></div></div>
+    </div>
+    <div class="kv"><span class="kv-k">Heap free</span><span class="kv-v" id="heap">--</span></div>
+  </div>
+
+  <!-- Card 3: Calibration -->
+  <div class="card">
+    <h2>Калибровка линии (NVS)</h2>
+    <p style="font-size:11px;color:#8b949e;margin-bottom:8px">
+      Min/max АЦП для каждого из 5 датчиков. Сохраняются в NVS, переживают рефлеш.
+    </p>
+    <div style="display:flex;gap:10px;margin-bottom:6px">
+      <div style="flex:1">
+        <label>min</label>
+        <div class="calib-grid" id="minRow"></div>
+      </div>
+      <div style="flex:1">
+        <label>max</label>
+        <div class="calib-grid" id="maxRow"></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="secondary" onclick="calibRun(3000)">Калибровать 3с</button>
+      <button class="secondary" onclick="calibRun(5000)">5с</button>
+    </div>
+    <div class="btn-row">
+      <button onclick="calibSave()">Сохранить</button>
+      <button class="danger" onclick="calibReset()">Сброс</button>
+    </div>
+    <h2 class="section-gap">MPU offset</h2>
+    <div class="kv"><span class="kv-k">gyro offset</span><span class="kv-v" id="gyroOffset">--</span></div>
+    <h2 class="section-gap">Wi-Fi настройка</h2>
+    <label>SSID</label>
+    <input type="text" id="wifiSsid" placeholder="BalanceRobot-Setup">
+    <label style="margin-top:6px">Пароль</label>
+    <input type="password" id="wifiPass" placeholder="минимум 8 символов">
+    <div class="btn-row" style="margin-top:8px">
+      <button onclick="wifiSave()">Сохранить и перезагрузить</button>
+      <button class="danger" onclick="wifiReset()">Очистить Wi-Fi</button>
+    </div>
+  </div>
+</div>
 </main>
+<div class="toast" id="toast"></div>
 <script>
+  const STATE_NAMES  = ['IDLE', 'STRAIGHT', 'LINE', 'STOPPED', 'MANUAL'];
+  const STATE_CLASSES = ['', 'green', 'blue', 'red', 'purple'];
+  const SENSOR_DEFAULT_MIN = [500, 500, 500, 500, 500];
+  const SENSOR_DEFAULT_MAX = [3500, 3500, 3500, 3500, 3500];
+
+  function toast(msg, kind) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast show ' + (kind || '');
+    setTimeout(() => el.className = 'toast', 2900);
+  }
+  async function api(path, opts) {
+    try {
+      const r = await fetch(path, opts);
+      if (!r.ok) { toast('HTTP ' + r.status + ' ' + r.statusText, 'error'); return null; }
+      return await r.json();
+    } catch (e) { toast('Сеть: ' + e.message, 'error'); return null; }
+  }
+  async function cmd(c) { const d = await api('/api/command?cmd=' + c); if (d) render(d); }
+  async function refresh() { const d = await api('/api/status'); if (d) render(d); }
+
+  // Calibration inputs
+  function buildCalibInputs() {
+    const mk = (rowId) => {
+      const r = document.getElementById(rowId);
+      r.innerHTML = '';
+      for (let i = 0; i < 5; i++) {
+        const c = document.createElement('div');
+        c.className = 'calib-cell';
+        c.innerHTML = '<div class="v">S' + i + '</div><input type="number" min="0" max="4095" id="' + rowId + i + '">';
+        r.appendChild(c);
+      }
+    };
+    mk('minRow'); mk('maxRow');
+  }
+  buildCalibInputs();
+
+  async function calibLoad() {
+    const d = await api('/api/calib');
+    if (!d) return;
+    const fill = (id, vals) => vals.forEach((v, i) => document.getElementById(id + i).value = v);
+    fill('minRow', d.line_min);
+    fill('maxRow', d.line_max);
+    document.getElementById('gyroOffset').textContent = d.gyro_offset;
+  }
+  async function calibSave() {
+    const line_min = [], line_max = [];
+    for (let i = 0; i < 5; i++) {
+      line_min.push(parseInt(document.getElementById('minRow' + i).value) || 0);
+      line_max.push(parseInt(document.getElementById('maxRow' + i).value) || 0);
+    }
+    const r = await fetch('/api/calib', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ line_min, line_max })
+    });
+    if (r.ok) toast('Калибровка сохранена', 'ok');
+    else toast('Ошибка сохранения: ' + r.status, 'error');
+  }
+  async function calibReset() {
+    const r = await api('/api/calib/reset');
+    if (r) { toast('Сброшено к дефолтам', 'ok'); calibLoad(); }
+  }
+  async function calibRun(ms) {
+    if (!confirm('Авто-калибровка ' + (ms/1000) + 'с: водите датчиком по белому/чёрному. Продолжить?')) return;
+    toast('Калибрую ' + (ms/1000) + 'с...', '');
+    document.querySelectorAll('.s-bar').forEach(b => b.classList.add('calibrating'));
+    const d = await api('/api/calib/line/run?ms=' + ms);
+    document.querySelectorAll('.s-bar').forEach(b => b.classList.remove('calibrating'));
+    if (d) {
+      toast('Готово: ' + JSON.stringify(d.line_min) + ' / ' + JSON.stringify(d.line_max), 'ok');
+      calibLoad();
+    }
+  }
+
+  async function wifiSave() {
+    const ssid = document.getElementById('wifiSsid').value.trim();
+    const pass = document.getElementById('wifiPass').value;
+    if (!ssid) { toast('SSID пустой', 'error'); return; }
+    if (pass.length < 8) { toast('Пароль минимум 8 символов', 'error'); return; }
+    const r = await fetch('/api/save-wifi?ssid=' + encodeURIComponent(ssid) + '&pass=' + encodeURIComponent(pass));
+    toast(r.ok ? 'Сохранено, перезагрузка...' : 'Ошибка: ' + r.status, r.ok ? 'ok' : 'error');
+  }
+  async function wifiReset() {
+    if (!confirm('Очистить Wi-Fi креды? Робот перезагрузится в режим AP.')) return;
+    await api('/api/reset-wifi');
+    toast('Очищено, перезагрузка...', 'ok');
+  }
+
+  // Joystick
   const joystick = document.getElementById('joystick');
-  const container = joystick.parentElement;
-  let isPressed = false;
-  function handleJoystickMove(e) {
-    if (!isPressed) return;
+  const container = document.getElementById('joystickBox');
+  let joystickActive = false;
+  function setJoystick(x, y) {
     const rect = container.getBoundingClientRect();
     const cx = rect.width / 2, cy = rect.height / 2;
     const radius = cy - 22;
-    let x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left - cx;
-    let y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top - cy;
+    joystick.style.left = (cx + x - 22) + 'px';
+    joystick.style.top  = (cy + y - 22) + 'px';
+  }
+  function joystickReset() {
+    joystickActive = false;
+    setJoystick(0, 0);
+    sendJoystick(0, 0);
+  }
+  function joystickMove(clientX, clientY) {
+    if (!joystickActive) return;
+    const rect = container.getBoundingClientRect();
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const radius = cy - 22;
+    let x = clientX - rect.left - cx;
+    let y = clientY - rect.top  - cy;
     const d = Math.sqrt(x*x + y*y);
     if (d > radius) { const a = Math.atan2(y, x); x = Math.cos(a)*radius; y = Math.sin(a)*radius; }
-    joystick.style.left = (cx + x - 22) + 'px';
-    joystick.style.top = (cy + y - 22) + 'px';
-    sendJoystickCommand(Math.round(-y/radius*200), Math.round(x/radius*100));
+    setJoystick(x, y);
+    sendJoystick(Math.round(-y/radius*200), Math.round(x/radius*100));
   }
-  joystick.addEventListener('mousedown', () => isPressed = true);
-  joystick.addEventListener('touchstart', () => isPressed = true);
-  document.addEventListener('mouseup', resetJoystick);
-  document.addEventListener('touchend', resetJoystick);
-  document.addEventListener('mousemove', handleJoystickMove);
-  document.addEventListener('touchmove', handleJoystickMove);
-  function resetJoystick() {
-    isPressed = false;
-    joystick.style.left = '78px';
-    joystick.style.top = '78px';
-    sendJoystickCommand(0, 0);
+  async function sendJoystick(t, s) {
+    await api('/api/joystick?throttle=' + t + '&steering=' + s);
   }
-  async function sendJoystickCommand(throttle, steering) {
-    try { updateDisplay(await (await fetch(`/api/joystick?throttle=${throttle}&steering=${steering}`)).json()); }
-    catch {}
-  }
-  async function startStraight() { try { updateDisplay(await (await fetch('/api/command?cmd=straight')).json()); } catch {} }
-  async function startLine() { try { updateDisplay(await (await fetch('/api/command?cmd=line')).json()); } catch {} }
-  async function stopRobot() { try { updateDisplay(await (await fetch('/api/command?cmd=stop')).json()); } catch {} }
-  async function getStatus() { try { updateDisplay(await (await fetch('/api/status')).json()); } catch {} }
-  function updateDisplay(data) {
-    if (!data) return;
-    const states = ['IDLE', 'STRAIGHT', 'LINE', 'STOPPED'];
-    const classes = ['', 'green', 'blue', 'red'];
-    const label = states[data.state] || 'UNKNOWN';
-    const cls = classes[data.state] || '';
+  joystick.addEventListener('mousedown',  e => { joystickActive = true; joystickMove(e.clientX, e.clientY); });
+  joystick.addEventListener('touchstart', e => { joystickActive = true; joystickMove(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, {passive:false});
+  document.addEventListener('mousemove',  e => { if (joystickActive) joystickMove(e.clientX, e.clientY); });
+  document.addEventListener('touchmove',  e => { if (joystickActive && e.touches[0]) joystickMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:true});
+  document.addEventListener('mouseup',   joystickReset);
+  document.addEventListener('touchend',  joystickReset);
+
+  function render(d) {
+    const label = STATE_NAMES[d.state] || 'UNKNOWN';
+    const cls   = STATE_CLASSES[d.state] || '';
     ['statusDisplay', 'statusTag'].forEach(id => {
       const el = document.getElementById(id);
       el.textContent = label;
       el.className = 'tag' + (cls ? ' ' + cls : '');
     });
-    document.getElementById('distance').textContent = data.distance ?? '--';
-    document.getElementById('lineError').textContent = data.lineError ?? '0';
-    document.getElementById('onLine').textContent = (data.lineError !== null && Math.abs(data.lineError) < 100) ? 'ДА' : 'НЕТ';
-    document.getElementById('angle').textContent = (data.angle || 0).toFixed(1) + '°';
-    document.getElementById('onSlope').textContent = data.slope ? 'ДА' : 'НЕТ';
-    document.getElementById('throttle').textContent = data.throttle ?? '0';
-    if (data.sensors) {
+    document.getElementById('wifiTag').textContent = 'WiFi: ' + (d.wifi || 'off');
+    document.getElementById('distance').textContent  = d.distance ?? '--';
+    document.getElementById('lineError').textContent = d.lineError ?? '0';
+    document.getElementById('angle').textContent     = (d.angle || 0).toFixed(1) + '°';
+    document.getElementById('onSlope').textContent   = d.slope ? 'ДА' : 'НЕТ';
+    document.getElementById('throttle').textContent  = d.throttle ?? '0';
+    document.getElementById('motors').textContent    = (d.m1 ?? 0) + ' / ' + (d.m2 ?? 0);
+    document.getElementById('heap').textContent      = d.heap ? Math.round(d.heap/1024) + ' KB' : '--';
+    if (d.sensors) {
       for (let i = 0; i < 5; i++) {
         const f = document.getElementById('sensor' + i);
-        if (f) f.style.height = ((data.sensors[i] || 0) / 200 * 100) + '%';
+        if (f) f.style.height = ((d.sensors[i] || 0) / 200 * 100) + '%';
       }
     }
   }
-  setInterval(getStatus, 1000);
+
+  calibLoad();
+  setInterval(refresh, 1000);
+  refresh();
 </script>
 </body>
 </html>
@@ -1035,6 +1204,121 @@ void wifiSaveCreds(const String &ssid, const String &pass) {
   prefs.end();
 }
 
+// ============================================================================
+// CALIBRATION (NVS-backed, survives reflash)
+// ============================================================================
+//
+// Stored in Preferences namespace "calib":
+//   line_min_0..4 / line_max_0..4  : uint16_t, ADC raw thresholds
+//   gyro_offset                     : float, MPU6050 X-gyro zero-rate
+//   z_baseline                      : int16_t, Z-axis accel at boot
+//
+// Defaults: 500 / 3500 (hardcoded in this file).
+// To reset, call /api/calib/reset or erase the namespace via Preferences.clear().
+
+static const char CALIB_NAMESPACE[] = "calib";
+static const uint16_t CALIB_DEFAULT_MIN[5] = {500, 500, 500, 500, 500};
+static const uint16_t CALIB_DEFAULT_MAX[5] = {3500, 3500, 3500, 3500, 3500};
+
+void loadCalibration() {
+  Preferences prefs;
+  if (!prefs.begin(CALIB_NAMESPACE, true)) {
+    // Namespace missing: use hardcoded defaults
+    Serial.println("[CALIB] No NVS data, using defaults");
+    return;
+  }
+  for (uint8_t i = 0; i < 5; i++) {
+    char key[12];
+    snprintf(key, sizeof(key), "lmin%d", i);
+    line_min_values[i] = prefs.getUShort(key, CALIB_DEFAULT_MIN[i]);
+    snprintf(key, sizeof(key), "lmax%d", i);
+    line_max_values[i] = prefs.getUShort(key, CALIB_DEFAULT_MAX[i]);
+  }
+  // Optional: gyro / z-baseline loaded separately because they're not yet
+  // captured at setup() time; see saveCalibration() and the auto-capture in
+  // setup() after MPU calibration.
+  prefs.end();
+  Serial.print("[CALIB] Loaded min[0..4] = ");
+  for (uint8_t i = 0; i < 5; i++) { Serial.print(line_min_values[i]); Serial.print(i < 4 ? "," : ""); }
+  Serial.print(" max[0..4] = ");
+  for (uint8_t i = 0; i < 5; i++) { Serial.print(line_max_values[i]); Serial.print(i < 4 ? "," : ""); }
+  Serial.println();
+}
+
+void saveCalibration() {
+  Preferences prefs;
+  prefs.begin(CALIB_NAMESPACE, false);
+  for (uint8_t i = 0; i < 5; i++) {
+    char key[12];
+    snprintf(key, sizeof(key), "lmin%d", i);
+    prefs.putUShort(key, line_min_values[i]);
+    snprintf(key, sizeof(key), "lmax%d", i);
+    prefs.putUShort(key, line_max_values[i]);
+  }
+  prefs.putFloat("gyro_off", x_gyro_offset);
+  prefs.putShort("z_base", z_accel_baseline);
+  prefs.end();
+  Serial.println("[CALIB] Saved to NVS");
+}
+
+void resetCalibration() {
+  Preferences prefs;
+  prefs.begin(CALIB_NAMESPACE, false);
+  prefs.clear();
+  prefs.end();
+  for (uint8_t i = 0; i < 5; i++) {
+    line_min_values[i] = CALIB_DEFAULT_MIN[i];
+    line_max_values[i] = CALIB_DEFAULT_MAX[i];
+  }
+  Serial.println("[CALIB] Reset to defaults (500 / 3500)");
+}
+
+// Blocking auto-calibration: samples raw ADC for `duration_ms` while the user
+// moves the sensor over the line. Only safe in IDLE; returns 409 if robot is
+// moving. Outputs the collected min/max as JSON.
+String runLineCalibrationBlocking(uint16_t duration_ms) {
+  if (robot_state != STATE_IDLE) {
+    return String("{\"error\":\"robot must be IDLE (currently state=") + String(robot_state) + "\"}";
+  }
+  uint16_t mn[5] = {4095, 4095, 4095, 4095, 4095};
+  uint16_t mx[5] = {0, 0, 0, 0, 0};
+  unsigned long t0 = millis();
+  while ((unsigned long)(millis() - t0) < duration_ms) {
+    // Force a fresh read (skips LINE_MODE_OFF gate)
+    for (uint8_t i = 0; i < 5; i++) {
+      int v = analogRead(sensor_pins[i]);
+      if (v < mn[i]) mn[i] = v;
+      if (v > mx[i]) mx[i] = v;
+    }
+    // Feed the watch dog
+    vTaskDelay(pdMS_TO_TICKS(20));
+  }
+  // Update globals + persist
+  for (uint8_t i = 0; i < 5; i++) {
+    line_min_values[i] = mn[i];
+    line_max_values[i] = mx[i];
+  }
+  saveCalibration();
+  char buf[256];
+  snprintf(buf, sizeof(buf),
+    "{\"line_min\":[%u,%u,%u,%u,%u],\"line_max\":[%u,%u,%u,%u,%u],\"duration_ms\":%u}",
+    mn[0],mn[1],mn[2],mn[3],mn[4],
+    mx[0],mx[1],mx[2],mx[3],mx[4],
+    (unsigned)duration_ms);
+  return String(buf);
+}
+
+String buildCalibJson() {
+  char buf[256];
+  snprintf(buf, sizeof(buf),
+    "{\"line_min\":[%u,%u,%u,%u,%u],\"line_max\":[%u,%u,%u,%u,%u],"
+    "\"gyro_offset\":%.2f,\"z_baseline\":%d}",
+    line_min_values[0],line_min_values[1],line_min_values[2],line_min_values[3],line_min_values[4],
+    line_max_values[0],line_max_values[1],line_max_values[2],line_max_values[3],line_max_values[4],
+    (double)x_gyro_offset, (int)z_accel_baseline);
+  return String(buf);
+}
+
 // Build a JSON status blob (no ArduinoJson lib needed, hand-rolled)
 String buildStatusJson() {
   char buf[640];
@@ -1043,6 +1327,8 @@ String buildStatusJson() {
     "\"angle\":%.2f,\"onSlope\":%s,\"throttle\":%d,\"speedM1\":%d,\"speedM2\":%d,"
     "\"m1\":%d,\"m2\":%d,\"lineSensors\":[%d,%d,%d,%d,%d],"
     "\"servoLeft\":%d,\"servoRight\":%d,"
+    "\"lineMin\":[%u,%u,%u,%u,%u],\"lineMax\":[%u,%u,%u,%u,%u],"
+    "\"gyroOffset\":%.2f,\"zBaseline\":%d,"
     "\"wifi\":\"%s\",\"heap\":%u",
     (unsigned)robot_state,
     (robot_state==STATE_IDLE)?"IDLE":(robot_state==STATE_STRAIGHT)?"STRAIGHT":
@@ -1056,6 +1342,9 @@ String buildStatusJson() {
     (int)line_sensor_calibrated[0],(int)line_sensor_calibrated[1],(int)line_sensor_calibrated[2],
     (int)line_sensor_calibrated[3],(int)line_sensor_calibrated[4],
     servo_left_deg, servo_right_deg,
+    line_min_values[0],line_min_values[1],line_min_values[2],line_min_values[3],line_min_values[4],
+    line_max_values[0],line_max_values[1],line_max_values[2],line_max_values[3],line_max_values[4],
+    (double)x_gyro_offset, (int)z_accel_baseline,
     (wifi_mode==WIFI_STA_OK)?"sta":(wifi_mode==WIFI_AP_MODE)?"ap":(wifi_mode==WIFI_CONNECTING)?"connecting":"off",
     (unsigned)ESP.getFreeHeap());
   return String(buf).substring(0, n);
@@ -1116,6 +1405,70 @@ void registerApiRoutes() {
     req->send(200, "text/plain", "cleared, rebooting");
     delay(500);
     ESP.restart();
+  });
+  // Calibration API
+  webServer.on("/api/calib", HTTP_GET, [](AsyncWebServerRequest *req) {
+    req->send(200, "application/json", buildCalibJson());
+  });
+  webServer.on("/api/calib", HTTP_POST, [](AsyncWebServerRequest *req) {
+    // Expect JSON body: {"line_min":[...],"line_max":[...]}
+    if (!req->hasParam("plain", true)) {
+      req->send(400, "application/json", "{\"error\":\"missing JSON body\"}");
+      return;
+    }
+    String body = req->getParam("plain", true)->value();
+    // Parse JSON (very simple: look for line_min and line_max arrays)
+    // Format: {"line_min":[...],"line_max":[...]}
+    int min_start = body.indexOf("\"line_min\":[");
+    int max_start = body.indexOf("\"line_max\":[");
+    if (min_start == -1 || max_start == -1) {
+      req->send(400, "application/json", "{\"error\":\"missing line_min or line_max\"}");
+      return;
+    }
+    min_start += 11; // length of "\"line_min\":["
+    max_start += 11;
+    int min_end = body.indexOf(']', min_start);
+    int max_end = body.indexOf(']', max_start);
+    if (min_end == -1 || max_end == -1) {
+      req->send(400, "application/json", "{\"error\":\"malformed arrays\"}");
+      return;
+    }
+    String min_str = body.substring(min_start, min_end);
+    String max_str = body.substring(max_start, max_end);
+    // Parse comma-separated ints
+    int idx = 0;
+    for (int p = 0, last = 0; idx < 5; ++idx) {
+      int comma = min_str.indexOf(',', last);
+      if (comma == -1) comma = min_str.length();
+      int val = min_str.substring(last, comma).toInt();
+      if (val >= 0 && val <= 4095) line_min_values[idx] = val;
+      last = comma + 1;
+    }
+    for (int p = 0, last = 0; idx < 5; ++idx) {
+      int comma = max_str.indexOf(',', last);
+      if (comma == -1) comma = max_str.length();
+      int val = max_str.substring(last, comma).toInt();
+      if (val >= 0 && val <= 4095) line_max_values[idx] = val;
+      last = comma + 1;
+    }
+    saveCalibration();
+    req->send(200, "application/json", buildCalibJson());
+  });
+  webServer.on("/api/calib/reset", HTTP_GET, [](AsyncWebServerRequest *req) {
+    resetCalibration();
+    req->send(200, "application/json", buildCalibJson());
+  });
+  // Auto-calibration endpoint (blocking, only in IDLE)
+  webServer.on("/api/calib/line/run", HTTP_GET, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("ms")) {
+      req->send(400, "application/json", "{\"error\":\"missing ms parameter\"}");
+      return;
+    }
+    uint16_t ms = req->getParam("ms")->value().toInt();
+    if (ms < 1000) ms = 1000;
+    if (ms > 30000) ms = 30000;
+    String result = runLineCalibrationBlocking(ms);
+    req->send(200, "application/json", result);
   });
   webServer.begin();
 }
@@ -1204,6 +1557,7 @@ void setup() {
   }
   initDistanceSensor();
   LineFollower_init();
+  loadCalibration();
   initTimers();
 
   // Initialize timing globals (otherwise first dt = micros()/1e6 = huge)
@@ -1225,6 +1579,7 @@ void setup() {
     z_accel_baseline = accel_t_gyro.value.z_accel;
     Serial.print("[SLOPE] Z-axis baseline captured: ");
     Serial.println(z_accel_baseline);
+    saveCalibration();  // persist z_baseline + gyro_offset
   } else {
     Serial.println("[SLOPE] WARN: MPU read failed at boot, baseline left at 0 (slope detection disabled)");
   }
