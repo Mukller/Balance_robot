@@ -433,8 +433,8 @@ label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 2px; }
       <button onclick="wifiSave()">Сохранить и перезагрузить</button>
       <button class="danger" onclick="wifiReset()">Очистить Wi-Fi</button>
     </div>
-  </div>
 </div>
+  </div>
 </main>
 <div class="toast" id="toast"></div>
 <script>
@@ -449,6 +449,39 @@ label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 2px; }
     el.className = 'toast show ' + (kind || '');
     setTimeout(() => el.className = 'toast', 2900);
   }
+
+  // WebSocket
+  let ws = null;
+  let wsReconnectTimer = null;
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = proto + '//' + location.host + '/ws';
+    ws = new WebSocket(wsUrl);
+    ws.binaryType = 'text';
+    ws.onopen = () => {
+      console.log('[WS] Connected');
+      clearInterval(pollTimer);
+      document.getElementById('wifiTag').textContent = 'WS: connected';
+      document.getElementById('wifiTag').className = 'tag green';
+    };
+    ws.onclose = () => {
+      console.log('[WS] Disconnected, fallback to polling');
+      document.getElementById('wifiTag').textContent = 'WS: disconnected (polling)';
+      document.getElementById('wifiTag').className = 'tag yellow';
+      pollTimer = setInterval(refresh, 1000);
+      // Reconnect attempt
+      if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+      wsReconnectTimer = setTimeout(connectWS, 3000);
+    };
+    ws.onerror = () => {};
+    ws.onmessage = (ev) => {
+      try {
+        const d = JSON.parse(ev.data);
+        render(d);
+      } catch (e) {}
+    };
+  }
+
   async function api(path, opts) {
     try {
       const r = await fetch(path, opts);
@@ -458,6 +491,81 @@ label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 2px; }
   }
   async function cmd(c) { const d = await api('/api/command?cmd=' + c); if (d) render(d); }
   async function refresh() { const d = await api('/api/status'); if (d) render(d); }
+
+  // Calibration inputs
+  function buildCalibInputs() {
+    const mk = (rowId) => {
+      const r = document.getElementById(rowId);
+      r.innerHTML = '';
+      for (let i = 0; i < 5; i++) {
+        const c = document.createElement('div');
+        c.className = 'calib-cell';
+        c.innerHTML = '<div class="v">S' + i + '</div><input type="number" min="0" max="4095" id="' + rowId + i + '">';
+        r.appendChild(c);
+      }
+    };
+    mk('minRow'); mk('maxRow');
+  }
+  buildCalibInputs();
+
+  // PID sliders
+  function buildPidSliders() {
+    const container = document.getElementById('pidSliders');
+    if (!container) return;
+    const pids = [
+      {key: 'Kp', label: 'Kp (balance P)', min: 0, max: 1, step: 0.001, val: 0.32},
+      {key: 'Kd', label: 'Kd (balance D)', min: 0, max: 0.5, step: 0.001, val: 0.05},
+      {key: 'Kp_thr', label: 'Kp_thr (speed P)', min: 0, max: 0.5, step: 0.001, val: 0.08},
+      {key: 'Ki_thr', label: 'Ki_thr (speed I)', min: 0, max: 0.5, step: 0.001, val: 0.1},
+    ];
+    container.innerHTML = '';
+    pids.forEach(p => {
+      const row = document.createElement('div');
+      row.style.marginBottom = '8px';
+      row.innerHTML = `
+        <label style="display:flex;align-items:center;gap:8px;width:100%">
+          <span style="width:120px;color:#8b949e;font-size:11px">${p.label}</span>
+          <input type="range" min="${p.min}" max="${p.max}" step="${p.step}" value="${p.val}"
+                 id="pid_${p.key}" style="flex:1;accent-color:#58a6ff">
+          <span id="pid_val_${p.key}" style="width:60px;text-align:right;font-family:monospace;color:#c9d1d9;font-size:12px">${p.val.toFixed(3)}</span>
+        </label>
+      `;
+      container.appendChild(row);
+    });
+    pids.forEach(p => {
+      document.getElementById('pid_' + p.key).addEventListener('input', e => {
+        document.getElementById('pid_val_' + p.key).textContent = parseFloat(e.target.value).toFixed(3);
+      });
+      document.getElementById('pid_' + p.key).addEventListener('change', e => {
+        sendPidUpdate(p.key, parseFloat(e.target.value));
+      });
+    });
+  }
+
+  async function pidLoad() {
+    const d = await api('/api/pid');
+    if (!d) return;
+    ['Kp','Kd','Kp_thr','Ki_thr'].forEach(k => {
+      const el = document.getElementById('pid_' + k);
+      if (el) { el.value = d[k]; document.getElementById('pid_val_' + k).textContent = d[k].toFixed(3); }
+    });
+  }
+  function sendPidUpdate(key, val) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({type:'pid', [key]: val}));
+    } else {
+      // Fallback to HTTP POST
+      fetch('/api/pid', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({[key]: val})
+      }).catch(() => {});
+    }
+  }
+  async function pidReset() {
+    const r = await api('/api/pid/reset');
+    if (r) { toast('PID сброшен к дефолтам', 'ok'); pidLoad(); }
+  }
 
   // Calibration inputs
   function buildCalibInputs() {
@@ -556,7 +664,11 @@ label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 2px; }
     sendJoystick(Math.round(-y/radius*200), Math.round(x/radius*100));
   }
   async function sendJoystick(t, s) {
-    await api('/api/joystick?throttle=' + t + '&steering=' + s);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({type:'joystick', throttle: t, steering: s}));
+    } else {
+      await api('/api/joystick?throttle=' + t + '&steering=' + s);
+    }
   }
   joystick.addEventListener('mousedown',  e => { joystickActive = true; joystickMove(e.clientX, e.clientY); });
   joystick.addEventListener('touchstart', e => { joystickActive = true; joystickMove(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, {passive:false});
@@ -573,7 +685,8 @@ label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 2px; }
       el.textContent = label;
       el.className = 'tag' + (cls ? ' ' + cls : '');
     });
-    document.getElementById('wifiTag').textContent = 'WiFi: ' + (d.wifi || 'off');
+    document.getElementById('wifiTag').textContent = d.wifi ? ('WS: ' + (d.ws ? 'connected' : 'polling')) : 'WS: off';
+    document.getElementById('wifiTag').className = 'tag ' + (d.ws ? 'green' : 'yellow');
     document.getElementById('distance').textContent  = d.distance ?? '--';
     document.getElementById('lineError').textContent = d.lineError ?? '0';
     document.getElementById('angle').textContent     = (d.angle || 0).toFixed(1) + '°';
@@ -587,11 +700,35 @@ label { font-size: 11px; color: #8b949e; display: block; margin-bottom: 2px; }
         if (f) f.style.height = ((d.sensors[i] || 0) / 200 * 100) + '%';
       }
     }
+    // Update calibration inputs if present
+    if (d.line_min) {
+      for (let i = 0; i < 5; i++) {
+        const mi = document.getElementById('minRow' + i);
+        const ma = document.getElementById('maxRow' + i);
+        if (mi) mi.value = d.line_min[i];
+        if (ma) ma.value = d.line_max[i];
+      }
+    }
+    if (d.gyroOffset !== undefined) {
+      document.getElementById('gyroOffset').textContent = d.gyroOffset.toFixed(2);
+    }
+    if (d.pid) {
+      ['Kp','Kd','Kp_thr','Ki_thr'].forEach(k => {
+        const el = document.getElementById('pid_' + k);
+        const val = document.getElementById('pid_val_' + k);
+        if (el && d.pid[k] !== undefined) { el.value = d.pid[k]; if (val) val.textContent = d.pid[k].toFixed(3); }
+      });
+    }
   }
 
+  // Init
+  buildPidSliders();
   calibLoad();
-  setInterval(refresh, 1000);
-  refresh();
+  pidLoad();
+  connectWS();
+
+  // Start polling as fallback (will be cancelled if WS connects)
+  let pollTimer = setInterval(refresh, 1000);
 </script>
 </body>
 </html>
