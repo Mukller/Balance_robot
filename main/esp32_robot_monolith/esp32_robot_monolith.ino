@@ -30,6 +30,7 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <AsyncWebSocket.h>
 #include <Preferences.h>
 #if __has_include("secrets.h")
   #include "secrets.h"
@@ -73,10 +74,20 @@
 #define KP_THROTTLE 0.080
 #define KI_THROTTLE 0.1
 
+// PID Runtime Tuning (NVS-backed, can be changed via WebSocket/UI)
+#define KP_DEFAULT 0.32f
+#define KD_DEFAULT 0.050f
+#define KP_THROTTLE_DEFAULT 0.080f
+#define KI_THROTTLE_DEFAULT 0.1f
+
 #define MAX_CONTROL_OUTPUT 500
 #define ITERM_MAX_ERROR 30
 #define ITERM_MAX 10000
 #define ANGLE_OFFSET 0.0
+
+// WebSocket Configuration
+#define WS_STATUS_INTERVAL_MS 20     // 50Hz status push
+#define WS_MAX_FRAME_SIZE 1024
 
 #define ZERO_SPEED 0xffffff
 #define MAX_ACCEL 14
@@ -164,7 +175,7 @@ float dt = 0;
 
 // Angle & Control
 float angle_adjusted = 0;
-float Kp = KP, Kd = KD, Kp_thr = KP_THROTTLE, Ki_thr = KI_THROTTLE;
+float Kp = KP_DEFAULT, Kd = KD_DEFAULT, Kp_thr = KP_THROTTLE_DEFAULT, Ki_thr = KI_THROTTLE_DEFAULT;
 float PID_errorSum = 0;
 float target_angle = 0, steering = 0;
 int16_t throttle = 0;
@@ -220,9 +231,15 @@ int16_t api_manual_steering_val  = 0;
 enum WiFiMode { WIFI_OFFLINE, WIFI_CONNECTING, WIFI_AP_MODE, WIFI_STA_OK };
 WiFiMode wifi_mode = WIFI_OFFLINE;
 AsyncWebServer webServer(80);
+AsyncWebSocket ws("/ws");
 bool api_manual_throttle = false;  // joystick override flag
 unsigned long wifi_led_toggle_ms = 0;
 bool wifi_led_state = false;
+
+// WebSocket state
+unsigned long ws_last_status_ms = 0;
+bool ws_connected = false;
+uint32_t ws_client_id = 0;
 #endif
 
 // ============================================================================
@@ -1319,6 +1336,135 @@ String buildCalibJson() {
   return String(buf);
 }
 
+// ============================================================================
+// WEBSOCKET HANDLING & STATUS BROADCAST
+// ============================================================================
+
+void broadcastStatus() {
+  if (!ws_connected) return;
+  String json = buildStatusJson();
+  ws.textAll(json);
+}
+
+void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
+  if (type == WS_EVT_CONNECT) {
+    ws_connected = true;
+    ws_client_id = client->id();
+    Serial.printf("[WS] Client #%u connected\n", client->id());
+    client->text(buildStatusJson());
+  } else if (type == WS_EVT_DISCONNECT) {
+    Serial.printf("[WS] Client #%u disconnected\n", client->id());
+    ws_connected = false;
+  } else if (type == WS_EVT_DATA) {
+    AwsFrameInfo *info = (AwsFrameInfo*)arg;
+    if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+      data[len] = 0;
+      String msg = (char*)data;
+      int type_start = msg.indexOf("\"type\":\"");
+      if (type_start != -1) {
+        type_start += 8;
+        int type_end = msg.indexOf('"', type_start);
+        String type = msg.substring(type_start, type_end);
+        if (type == "pid") {
+          auto extract = [&](String key, float &var, float def) {
+            int idx = msg.indexOf("\"" + key + "\":");
+            if (idx != -1) {
+              idx += key.length() + 3;
+              int end = msg.indexOf(',', idx);
+              if (end == -1) end = msg.indexOf('}', idx);
+              float val = msg.substring(idx, end).toFloat();
+              var = val;
+            }
+          };
+          extract("Kp", Kp, KP_DEFAULT);
+          extract("Kd", Kd, KD_DEFAULT);
+          extract("Kp_thr", Kp_thr, KP_THROTTLE_DEFAULT);
+          extract("Ki_thr", Ki_thr, KI_THROTTLE_DEFAULT);
+          savePID();
+          ws.textAll(buildCalibJson());
+          return;
+        } else if (type == "joystick") {
+          int t_idx = msg.indexOf("\"throttle\":");
+          int s_idx = msg.indexOf("\"steering\":");
+          if (t_idx != -1) {
+            t_idx += 11;
+            int end = msg.indexOf(',', t_idx);
+            if (end == -1) end = msg.indexOf('}', t_idx);
+            api_manual_throttle_val = constrain(msg.substring(t_idx, end).toInt(), -200, 200);
+          }
+          if (s_idx != -1) {
+            s_idx += 11;
+            int end = msg.indexOf(',', s_idx);
+            if (end == -1) end = msg.indexOf('}', s_idx);
+            api_manual_steering_val = constrain(msg.substring(s_idx, end).toInt(), -100, 100);
+          }
+          api_manual_throttle = true;
+          if (robot_state != STATE_MANUAL) robot_state = STATE_MANUAL;
+          return;
+        } else if (type == "cmd") {
+          int cmd_idx = msg.indexOf("\"cmd\":\"");
+          if (cmd_idx != -1) {
+            cmd_idx += 7;
+            int end = msg.indexOf('"', cmd_idx);
+            String cmd = msg.substring(cmd_idx, end);
+            cmd.toLowerCase();
+            if (cmd == "straight") { robot_state = STATE_STRAIGHT; state_start_time = millis(); }
+            else if (cmd == "line") { LineFollower_setMode(LINE_MODE_ON); robot_state = STATE_LINE_FOLLOW; }
+            else if (cmd == "stop" || cmd == "idle") { robot_state = STATE_IDLE; state_start_time = millis(); throttle = steering = 0; }
+            else if (cmd == "manual") { robot_state = STATE_MANUAL; }
+            else if (cmd == "gripper_open")  { gripperOpen(); }
+            else if (cmd == "gripper_close") { gripperClose(); }
+            else if (cmd == "gripper_reset") { gripperReset(); }
+          }
+          return;
+        }
+      }
+    }
+  }
+}
+
+// PID NVS Persistence
+static const char PID_NAMESPACE[] = "pid";
+
+void loadPID() {
+  Preferences prefs;
+  if (!prefs.begin("pid", true)) return;
+  Kp = prefs.getFloat("Kp", KP_DEFAULT);
+  Kd = prefs.getFloat("Kd", KD_DEFAULT);
+  Kp_thr = prefs.getFloat("Kp_thr", KP_THROTTLE_DEFAULT);
+  Ki_thr = prefs.getFloat("Ki_thr", KI_THROTTLE_DEFAULT);
+  prefs.end();
+  Serial.printf("[PID] Loaded: Kp=%.3f Kd=%.3f Kp_thr=%.3f Ki_thr=%.3f\n", Kp, Kd, Kp_thr, Ki_thr);
+}
+
+void savePID() {
+  Preferences prefs;
+  prefs.begin("pid", false);
+  prefs.putFloat("Kp", Kp);
+  prefs.putFloat("Kd", Kd);
+  prefs.putFloat("Kp_thr", Kp_thr);
+  prefs.putFloat("Ki_thr", Ki_thr);
+  prefs.end();
+  Serial.printf("[PID] Saved: Kp=%.3f Kd=%.3f Kp_thr=%.3f Ki_thr=%.3f\n", Kp, Kd, Kp_thr, Ki_thr);
+}
+
+void resetPID() {
+  Kp = KP_DEFAULT; Kd = KD_DEFAULT; Kp_thr = KP_THROTTLE_DEFAULT; Ki_thr = KI_THROTTLE_DEFAULT;
+  Preferences prefs;
+  prefs.begin("pid", false);
+  prefs.clear();
+  prefs.end();
+  Serial.println("[PID] Reset to defaults");
+}
+
+String buildPidJson() {
+  char buf[128];
+  snprintf(buf, sizeof(buf),
+    "{\"Kp\":%.3f,\"Kd\":%.3f,\"Kp_thr\":%.3f,\"Ki_thr\":%.3f}",
+    (double)Kp, (double)Kd, (double)Kp_thr, (double)Ki_thr);
+  return String(buf);
+}
+
 // Build a JSON status blob (no ArduinoJson lib needed, hand-rolled)
 String buildStatusJson() {
   char buf[640];
@@ -1470,6 +1616,40 @@ void registerApiRoutes() {
     String result = runLineCalibrationBlocking(ms);
     req->send(200, "application/json", result);
   });
+  // PID API
+  webServer.on("/api/pid", HTTP_GET, [](AsyncWebServerRequest *req) {
+    req->send(200, "application/json", buildPidJson());
+  });
+  webServer.on("/api/pid", HTTP_POST, [](AsyncWebServerRequest *req) {
+    if (!req->hasParam("plain", true)) {
+      req->send(400, "application/json", "{\"error\":\"missing JSON body\"}");
+      return;
+    }
+    String body = req->getParam("plain", true)->value();
+    auto extract = [&](String key, float &var, float def) {
+      int idx = body.indexOf("\"" + key + "\":");
+      if (idx != -1) {
+        idx += key.length() + 3;
+        int end = body.indexOf(',', idx);
+        if (end == -1) end = body.indexOf('}', idx);
+        float val = body.substring(idx, end).toFloat();
+        var = val;
+      }
+    };
+    extract("Kp", Kp, KP_DEFAULT);
+    extract("Kd", Kd, KD_DEFAULT);
+    extract("Kp_thr", Kp_thr, KP_THROTTLE_DEFAULT);
+    extract("Ki_thr", Ki_thr, KI_THROTTLE_DEFAULT);
+    savePID();
+    req->send(200, "application/json", buildPidJson());
+  });
+  webServer.on("/api/pid/reset", HTTP_GET, [](AsyncWebServerRequest *req) {
+    resetPID();
+    req->send(200, "application/json", buildPidJson());
+  });
+  // WebSocket
+  ws.onEvent(onWsEvent);
+  webServer.addHandler(&ws);
   webServer.begin();
 }
 
@@ -1559,6 +1739,7 @@ void setup() {
   LineFollower_init();
   loadCalibration();
   initTimers();
+  loadPID();
 
   // Initialize timing globals (otherwise first dt = micros()/1e6 = huge)
   timer_value = micros();
@@ -1633,6 +1814,13 @@ void loop() {
   }
 #if ENABLE_WIFI
   wifiLedTick();
+  // WebSocket periodic status broadcast
+  unsigned long now_ms = millis();
+  if (now_ms - ws_last_status_ms >= WS_STATUS_INTERVAL_MS) {
+    ws_last_status_ms = now_ms;
+    broadcastStatus();
+  }
+  ws.cleanupClients();
 #endif
 }
 
